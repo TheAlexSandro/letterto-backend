@@ -1,0 +1,87 @@
+{
+    "UNAUTHORIZED": {
+        "http": 401,
+        "code": "UNAUTHORIZED",
+        "message": "Unauthorized"
+    },
+    "INVALID_PASSWORD": {
+        "http": 401,
+        "code": "INVALID_PASSWORD",
+        "message": "Invalid password."
+    },
+    "BAD_REQUEST": {
+        "http": 400,
+        "code": "BAD_REQUEST",
+        "message": "Something went wrong..."
+    },
+    "PARAMETER_EMPTY": {
+        "http": 404,
+        "code": "PARAMETER_EMPTY",
+        "message": "{param} parameter is required."
+    },
+    "USER_ALREADY_EXIST": {
+        "http": 302,
+        "code": "USER_ALREADY_EXIST",
+        "message": "This user already exist"
+    },
+    "USER_NOT_FOUND": {
+        "http": 404,
+        "code": "USER_NOT_FOUND",
+        "message": "This user is not found"
+    },
+    "LETTER_NOT_FOUND": {
+        "http": 404,
+        "code": "LETTER_NOT_FOUND",
+        "messsage": "This letter is not found"
+    },
+    "LETTER_LOCKED": {
+        "http": 401,
+        "code": "LETTER_LOCKED",
+        "message": "This letter is password protected, unlock to view the message."
+    },
+    "INVALID_FILETYPE": {
+        "http": 415,
+        "code": "INVALID_FILETYPE",
+        "message": "Unsupported file type, only {media} is allowed."
+    },
+    "ID_OCCUPIED": {
+        "http": 226,
+        "code": "ID_OCCUPIED",
+        "message": "{id} is occupied."
+    },
+    "FIELD_CONTENT_INVALID": {
+        "http": 406,
+        "code": "FIELD_CONTENT_INVALID",
+        "message": "Field for {param} parameter is invalid, allowed: {field}"
+    },
+    "LENGTH_TOO_LONG": {
+        "http": 414,
+        "code": "LENGTH_TOO_LONG",
+        "message": "Length for {param} parameter is too long, allowed: {len} characters."
+    },
+    "FILE_TOO_LARGE": {
+        "http": 413,
+        "code": "FILE_TOO_LARGE",
+        "message": "{param} uploaded exceeding allowed file size, max is {size}."
+    },
+    "LETTER_EMPTY": {
+        "http": 404,
+        "code": "LETTER_EMPTY",
+        "message": "You don't have any letter, start making new letter now."
+    },
+    "OPTIONAL_PARAMETER_REQUIRED": {
+        "http": 404,
+        "code": "OPTIONAL_PARAMETER_REQUIRED",
+        "message": "Paramater {opt_param} is required when parameter {param} is used."
+    },
+    "TOO_MANY_FILES": {
+        "http": 426,
+        "code": "TOO_MANY_FILES",
+        "message": "Only 1 file at the time is allowed."
+    },
+    "LENGTH_TOO_SHORT": {
+        "http": 400,
+        "code": "LENGTH_TOO_SHORT",
+        "message": "The length for {param} is too short, {len} characters is required."
+    }
+}
