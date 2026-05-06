@@ -569,17 +569,17 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			getDB := config.DB.Table("letters").Select("user_id").Where("letter_id = ? AND user_id = ?", input.ID, user.UserID).First(&letter)
-			if getDB.RowsAffected < 1 {
-				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
 			if err := ctx.ShouldBind(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				msg := strings.Replace(errJson.Message, "{param}", "id", 1)
 				utils.JSON(ctx, errJson.Http, false, msg, nil, errJson.Code)
+				return
+			}
+
+			getDB := config.DB.Table("letters").Select("user_id").Where("letter_id = ? AND user_id = ?", input.ID, user.UserID).First(&letter)
+			if getDB.RowsAffected < 1 {
+				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
 
