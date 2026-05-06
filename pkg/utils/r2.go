@@ -41,7 +41,7 @@ func UploadToR2(file *multipart.FileHeader) (string, error) {
 	}
 	defer f.Close()
 
-	fileName := GenerateID(10)
+	fileName := GenerateID(30)
 	_, err = R2Client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:      aws.String(os.Getenv("R2_BUCKET")),
 		Key:         aws.String(fileName),
