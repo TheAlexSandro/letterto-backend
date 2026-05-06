@@ -65,6 +65,7 @@ type LetterResponsePre struct {
 	RecipientName string `json:"recipient_name"`
 	Sender        string `json:"sender"`
 	Font          string `json:"font"`
+	IsLocked      bool   `json:"is_locked"`
 }
 
 func Letter(r *gin.Engine) {
@@ -612,7 +613,7 @@ func Letter(r *gin.Engine) {
 
 			config.DB.Table("letters").
 				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password").
-				Where("recipient_name = ?", input.RecipientName).
+				Where("LOWER(recipient_name) = LOWER(?)", input.RecipientName).
 				Find(&letters)
 
 			var result []LetterResponsePre
@@ -630,13 +631,15 @@ func Letter(r *gin.Engine) {
 				}
 
 				if l.Password != "-" && l.Password != "" {
-					item.Message = "[DATA REDACTED]"
+					item.IsLocked = true
 				} else {
-					if len(l.Message) > 30 {
-						item.Message = l.Message[:25] + "..."
+					if len(l.Message) > 40 {
+						item.Message = utils.TruncateText(l.Message, 40)
 					} else {
 						item.Message = l.Message
 					}
+					item.IsLocked = false
+					item.Font = l.Font
 				}
 
 				if l.ShowRecipient == "yes" {
