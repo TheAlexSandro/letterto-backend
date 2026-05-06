@@ -110,8 +110,22 @@ func GetFileType(file *multipart.FileHeader) (string, error) {
 	return "unknown", nil
 }
 
-func ValidateLength(ctx *gin.Context, value string, envKey string, paramName string) bool {
-	maxLen, _ := strconv.Atoi(os.Getenv(envKey))
+func ValidateLength(ctx *gin.Context, value string, paramName string) bool {
+	maxLen, _ := strconv.Atoi(os.Getenv("LEN_MAX"))
+	minLen, _ := strconv.Atoi(os.Getenv("LEN_MIN"))
+
+	if paramName == "password" && len(value) < minLen {
+		var errJson models.ErrorDetail
+		GetErrorJson("LENGTH_TOO_SHORT", &errJson)
+
+		rplc := strings.NewReplacer(
+			"{param}", paramName,
+			"{len}", strconv.Itoa(minLen),
+		)
+
+		JSON(ctx, errJson.Http, false, rplc.Replace(errJson.Message), nil, errJson.Code)
+		return false
+	}
 
 	if len(value) > maxLen {
 		var errJson models.ErrorDetail
@@ -192,4 +206,14 @@ func SetCookieSameSite() http.SameSite {
 	default:
 		return http.SameSiteLaxMode
 	}
+}
+
+func TruncateText(s string, max int) string {
+	runes := []rune(s)
+
+	if len(runes) <= max {
+		return s
+	}
+
+	return string(runes[:max]) + "..."
 }

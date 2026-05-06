@@ -81,31 +81,8 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			getInfo := config.DB.Table("letters").Where("letter_id = ?", letter.ID).First(&letterInfo)
-
-			if letter.Edit == "yes" {
-				isLogin, userInfo := middleware.IsLogin(ctx)
-				if isLogin {
-					if getInfo.RowsAffected < 1 || letterInfo.UserID != userInfo.UserID {
-						utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
-						utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-						return
-					}
-
-					utils.JSON(ctx, http.StatusOK, true, "Success!", letterInfo, "")
-					return
-				}
-			}
-
-			if getInfo.RowsAffected < 1 || letterInfo.Privacy == "private" {
+			if err := config.DB.Table("letters").Where("letter_id = ?", letter.ID).First(&letterInfo).Error; err != nil {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
-			verify := middleware.VerifyLetter(ctx)
-			if letterInfo.Password != "-" && !verify {
-				utils.GetErrorJson("LETTER_LOCKED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -124,23 +101,47 @@ func Letter(r *gin.Engine) {
 				Video:        letterInfo.Video,
 			}
 
-			var user models.User
 			if letterInfo.ShowSender == "yes" {
-				getUser := config.DB.Table("users").Select("name").Where("user_id = ?", letterInfo.UserID).First(&user)
-				if getUser.RowsAffected < 1 {
-					letterData.Sender = "-"
-				} else {
+				var user models.User
+				if config.DB.Table("users").Select("name").Where("user_id = ?", letterInfo.UserID).First(&user).RowsAffected > 0 {
 					letterData.Sender = user.Name
+				} else {
+					letterData.Sender = "-"
 				}
 			} else {
 				letterData.Sender = "-"
 			}
 
-			switch letterInfo.ShowRecipient {
-			case "yes":
+			if letterInfo.ShowRecipient == "yes" {
 				letterData.RecipientName = letterInfo.RecipientName
-			case "no":
+			} else {
 				letterData.RecipientName = "-"
+			}
+
+			isLogin, userInfo := middleware.IsLogin(ctx)
+			isOwner := isLogin && letterInfo.UserID == userInfo.UserID
+
+			if isOwner && letter.Edit == "yes" {
+				utils.JSON(ctx, http.StatusOK, true, "Success!", letterInfo, "")
+				return
+			}
+
+			if letter.Edit == "yes" && !isOwner {
+				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if !isOwner && letterInfo.IsBurned == "yes" {
+				utils.GetErrorJson("BURNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if letterInfo.Password != "-" && !middleware.VerifyLetter(ctx) {
+				utils.GetErrorJson("LETTER_LOCKED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterData, "")
@@ -199,7 +200,7 @@ func Letter(r *gin.Engine) {
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: utils.SetCookieSameSite(),
-				//Domain:   os.Getenv("DOMAIN"),
+				Domain:   os.Getenv("DOMAIN"),
 			})
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
@@ -226,6 +227,7 @@ func Letter(r *gin.Engine) {
 			showSender := ctx.PostForm("show_sender")
 			showRecipient := ctx.PostForm("show_recipient")
 			artist := ctx.PostForm("artist")
+			viewOnce := ctx.PostForm("view_once")
 
 			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
@@ -247,7 +249,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			if !utils.ValidateLength(ctx, letterId, "LEN_LETTER_ID", "letter_id") || !utils.ValidateLength(ctx, password, "LEN_PW", "password") {
+			if !utils.ValidateLength(ctx, letterId, "letter_id") || (password != "" && !utils.ValidateLength(ctx, password, "password")) {
 				return
 			}
 
@@ -334,6 +336,7 @@ func Letter(r *gin.Engine) {
 				ShowRecipient: showRecipient,
 				CreatedAt:     now.Format("02/01/06"),
 				Artist:        artist,
+				ViewOnce:      viewOnce,
 			}
 
 			if imageUrl != "" {
@@ -371,6 +374,7 @@ func Letter(r *gin.Engine) {
 
 			for i := range letterList {
 				letterList[i].Sender = user.Name
+				letterList[i].Message = utils.TruncateText(letterList[i].Message, 40)
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterList, "")
@@ -398,21 +402,23 @@ func Letter(r *gin.Engine) {
 			showRecipient := ctx.PostForm("show_recipient")
 			artist := ctx.PostForm("artist")
 			new_letterId := ctx.PostForm("new_letterid")
+			view_once := ctx.PostForm("view_once")
+			is_burned := ctx.PostForm("is_burned")
 
 			delImg := ctx.PostForm("image")
 			delVid := ctx.PostForm("video")
-
-			if letterId == "" || recipientName == "" || message == "" || music == "" || artist == "" {
-				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
-				msg := strings.Replace(errJson.Message, "{param}", "letter_id, recipient_name, message, music, artist", 1)
-				utils.JSON(ctx, errJson.Http, false, msg, nil, errJson.Code)
-				return
-			}
 
 			var existing models.Letter
 			if err := config.DB.Table("letters").Where("letter_id = ? AND user_id = ?", letterId, user.UserID).First(&existing).Error; err != nil {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if letterId == "" || recipientName == "" || message == "" || music == "" || artist == "" {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				msg := strings.Replace(errJson.Message, "{param}", "letter_id, recipient_name, message, music, artist", 1)
+				utils.JSON(ctx, errJson.Http, false, msg, nil, errJson.Code)
 				return
 			}
 
@@ -426,13 +432,17 @@ func Letter(r *gin.Engine) {
 					return
 				}
 
-				if !utils.ValidateLength(ctx, new_letterId, "LEN_LETTER_ID", "letter_id") {
+				if !utils.ValidateLength(ctx, new_letterId, "letter_id") {
 					return
 				}
 			}
 
 			if new_letterId == "" {
 				new_letterId = existing.LetterID
+			}
+
+			if is_burned == "" {
+				is_burned = existing.IsBurned
 			}
 
 			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
@@ -524,10 +534,12 @@ func Letter(r *gin.Engine) {
 				"artist":         artist,
 				"image":          imageUrl,
 				"video":          videoUrl,
+				"view_once":      view_once,
+				"is_burned":      is_burned,
 			}
 
 			if password != "" && password != "-" {
-				if utils.ValidateLength(ctx, password, "LEN_PW", "password") {
+				if utils.ValidateLength(ctx, password, "password") {
 					updateData["password"] = password
 				} else {
 					return
@@ -557,17 +569,17 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			getDB := config.DB.Table("letters").Select("user_id").Where("letter_id = ? AND user_id = ?", input.ID, user.UserID).First(&letter)
+			if getDB.RowsAffected < 1 {
+				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			if err := ctx.ShouldBind(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				msg := strings.Replace(errJson.Message, "{param}", "id", 1)
 				utils.JSON(ctx, errJson.Http, false, msg, nil, errJson.Code)
-				return
-			}
-
-			getDB := config.DB.Table("letters").Select("user_id").Where("letter_id = ?", input.ID).First(&letter)
-			if getDB.RowsAffected < 1 || letter.UserID != user.UserID {
-				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
 				return
 			}
 
@@ -645,6 +657,44 @@ func Letter(r *gin.Engine) {
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", result, "")
+		})
+
+		letter.POST("/burn", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+			var letter models.Letter
+			var input LetterInfo
+
+			if err := ctx.ShouldBind(&input); err != nil {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "id", 1), nil, errJson.Code)
+				return
+			}
+
+			getDb := config.DB.Table("letters").Select("user_id", "view_once").Where("letter_id = ?", input.ID).First(&letter)
+
+			if getDb.RowsAffected < 1 {
+				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+				return
+			}
+
+			if letter.ViewOnce == "yes" {
+				verify, user := middleware.IsLogin(ctx)
+				shouldBurn := !verify || letter.UserID != user.UserID
+				if shouldBurn {
+					if err := config.DB.
+						Table("letters").
+						Where("letter_id = ?", input.ID).
+						Update("is_burned", "yes").Error; err != nil {
+
+						utils.GetErrorJson("BAD_REQUEST", &errJson)
+						utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+						return
+					}
+				}
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 	}
 }

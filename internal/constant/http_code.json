@@ -32,7 +32,7 @@
     "LETTER_NOT_FOUND": {
         "http": 404,
         "code": "LETTER_NOT_FOUND",
-        "messsage": "This letter is not found"
+        "message": "This letter is not found"
     },
     "LETTER_LOCKED": {
         "http": 401,
@@ -57,7 +57,7 @@
     "LENGTH_TOO_LONG": {
         "http": 414,
         "code": "LENGTH_TOO_LONG",
-        "message": "Length for {param} parameter is too long, allowed: {len} characters."
+        "message": "The length for {param} is too long, max is {len} characters."
     },
     "FILE_TOO_LARGE": {
         "http": 413,
@@ -82,6 +82,11 @@
     "LENGTH_TOO_SHORT": {
         "http": 400,
         "code": "LENGTH_TOO_SHORT",
-        "message": "The length for {param} is too short, {len} characters is required."
+        "message": "The length for {param} is too short, min is {len} characters."
+    },
+    "BURNED": {
+        "http": 403,
+        "code": "BURNED",
+        "message": "This letter has been burned."
     }
 }

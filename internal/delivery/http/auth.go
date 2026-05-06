@@ -7,6 +7,7 @@ import (
 	"LetterToBackend/pkg/utils"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,7 +49,8 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
-			if len(value.Password) < 8 {
+			conv, _ := strconv.Atoi(os.Getenv("LEN_MIN"))
+			if len(value.Password) < conv {
 				utils.GetErrorJson("LENGTH_TOO_SHORT", &errJson)
 				rplc := strings.NewReplacer("{param}", "password", "{len}", "8")
 				utils.JSON(ctx, errJson.Http, false, rplc.Replace(errJson.Message), nil, errJson.Code)
@@ -104,7 +106,7 @@ func Auth(r *gin.Engine) {
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: utils.SetCookieSameSite(),
-				//Domain:   os.Getenv("DOMAIN"),
+				Domain:   os.Getenv("DOMAIN"),
 			})
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
@@ -166,7 +168,7 @@ func Auth(r *gin.Engine) {
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: utils.SetCookieSameSite(),
-				//Domain:   os.Getenv("DOMAIN"),
+				Domain:   os.Getenv("DOMAIN"),
 			})
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")

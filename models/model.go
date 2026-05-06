@@ -34,6 +34,7 @@ type Letter struct {
 	ShowSender    string `gorm:"type:varchar(3);not null;" json:"show_sender"`
 	ShowRecipient string `gorm:"type:varchar(3);not null" json:"show_recipient"`
 	CreatedAt     string `gorm:"type:text;not null" json:"created_at"`
+	ViewOnce      string `gorm:"type:text;not null" json:"view_once"`
 	IsBurned      string `gorm:"type:varchar(3);default:no" json:"is_burned"`
 }
 
