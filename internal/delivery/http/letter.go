@@ -330,7 +330,7 @@ func Letter(r *gin.Engine) {
 			newLetter := models.Letter{
 				LetterID:      letterId,
 				UserID:        user.UserID,
-				RecipientName: recipientName,
+				RecipientName: strings.TrimSpace(recipientName),
 				Message:       message,
 				Music:         music,
 				MusicProfile:  musicProfile,
@@ -566,7 +566,7 @@ func Letter(r *gin.Engine) {
 
 			updateData := map[string]interface{}{
 				"letter_id":      new_letterId,
-				"recipient_name": recipientName,
+				"recipient_name": strings.TrimSpace(recipientName),
 				"message":        message,
 				"music":          music,
 				"music_profile":  musicProfile,
@@ -660,15 +660,16 @@ func Letter(r *gin.Engine) {
 				offset = 1
 			}
 			skip := (offset - 1) * 5
+			reciName := strings.TrimSpace(input.RecipientName)
 
 			var total int64
 			config.DB.Table("letters").
-				Where("LOWER(recipient_name) = LOWER(?)", input.RecipientName).
+				Where("LOWER(recipient_name) = LOWER(?)", reciName).
 				Count(&total)
 
 			config.DB.Table("letters").
 				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password").
-				Where("LOWER(recipient_name) = LOWER(?)", input.RecipientName).
+				Where("LOWER(recipient_name) = LOWER(?)", reciName).
 				Offset(skip).
 				Limit(5).
 				Find(&letters)
@@ -676,7 +677,7 @@ func Letter(r *gin.Engine) {
 			var result []LetterResponsePre
 
 			for _, l := range letters {
-				if l.Privacy == "private" || l.ShowRecipient == "no" {
+				if l.Privacy == "private" {
 					continue
 				}
 
@@ -694,6 +695,12 @@ func Letter(r *gin.Engine) {
 					item.Message = l.Message
 					item.IsLocked = false
 					item.Font = l.Font
+				}
+
+				if l.ShowRecipient == "no" {
+					item.RecipientName = "-"
+				} else {
+					item.RecipientName = l.RecipientName
 				}
 
 				if l.ShowSender == "yes" {
