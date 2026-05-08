@@ -25,7 +25,12 @@ type VerifyPassword struct {
 }
 
 type LetterSeach struct {
+	Offset        string `form:"offset" binding:"required"`
 	RecipientName string `form:"recipient_name" binding:"required"`
+}
+
+type MyLetter struct {
+	Offset string `form:"offset" binding:"required"`
 }
 
 type LetterResponse struct {
@@ -355,9 +360,27 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"letter_id": letterId}, "")
 		})
 
+		letter.GET("/total", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+			verify, user := middleware.IsLogin(ctx)
+			if !verify {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			var c int64
+			config.DB.Table("letters").
+				Select("letter_id").
+				Where("user_id = ?", user.UserID).Count(&c)
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"total": c}, "")
+		})
+
 		letter.GET("/myLetters", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var letterList []LetterResponse
+			var input MyLetter
 
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
@@ -366,7 +389,28 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			getDb := config.DB.Table("letters").Select("letter_id", "user_id", "message", "created_at", "font", "recipient_name", "music_profile", "music_title").Where("user_id = ?", user.UserID).Find(&letterList)
+			if err := ctx.ShouldBind(&input); err != nil {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "offset", 1), nil, "")
+				return
+			}
+
+			offsetStr := input.Offset
+			offset, err := strconv.Atoi(offsetStr)
+			if err != nil || offset < 1 || offset > 5 {
+				offset = 1
+			}
+
+			limit := 5
+			skip := (offset - 1) * limit
+
+			getDb := config.DB.Table("letters").
+				Select("letter_id", "user_id", "message", "created_at", "font", "recipient_name", "music_profile", "music_title").
+				Where("user_id = ?", user.UserID).
+				Offset(skip).
+				Limit(limit).
+				Find(&letterList)
+
 			if getDb.RowsAffected < 1 {
 				utils.GetErrorJson("LETTER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -375,7 +419,6 @@ func Letter(r *gin.Engine) {
 
 			for i := range letterList {
 				letterList[i].Sender = user.Name
-				letterList[i].Message = utils.TruncateText(letterList[i].Message, 40)
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterList, "")
@@ -611,41 +654,46 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			offsetStr := input.Offset
+			offset, err := strconv.Atoi(offsetStr)
+			if err != nil || offset < 1 {
+				offset = 1
+			}
+			skip := (offset - 1) * 5
+
+			var total int64
+			config.DB.Table("letters").
+				Where("LOWER(recipient_name) = LOWER(?)", input.RecipientName).
+				Count(&total)
+
 			config.DB.Table("letters").
 				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password").
 				Where("LOWER(recipient_name) = LOWER(?)", input.RecipientName).
+				Offset(skip).
+				Limit(5).
 				Find(&letters)
 
 			var result []LetterResponsePre
 
 			for _, l := range letters {
-				if l.Privacy == "private" {
+				if l.Privacy == "private" || l.ShowRecipient == "no" {
 					continue
 				}
 
 				item := LetterResponsePre{
-					LetterID:     l.LetterID,
-					MusicProfile: l.MusicProfile,
-					MusicTitle:   l.MusicTitle,
-					CreatedAt:    l.CreatedAt,
+					LetterID:      l.LetterID,
+					MusicProfile:  l.MusicProfile,
+					MusicTitle:    l.MusicTitle,
+					CreatedAt:     l.CreatedAt,
+					RecipientName: l.RecipientName,
 				}
 
 				if l.Password != "-" && l.Password != "" {
 					item.IsLocked = true
 				} else {
-					if len(l.Message) > 40 {
-						item.Message = utils.TruncateText(l.Message, 40)
-					} else {
-						item.Message = l.Message
-					}
+					item.Message = l.Message
 					item.IsLocked = false
 					item.Font = l.Font
-				}
-
-				if l.ShowRecipient == "yes" {
-					item.RecipientName = l.RecipientName
-				} else {
-					item.RecipientName = "-"
 				}
 
 				if l.ShowSender == "yes" {
@@ -659,7 +707,11 @@ func Letter(r *gin.Engine) {
 				result = append(result, item)
 			}
 
-			utils.JSON(ctx, http.StatusOK, true, "Success!", result, "")
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{
+				"total":   total,
+				"offset":  offset,
+				"letters": result,
+			}, "")
 		})
 
 		letter.POST("/burn", func(ctx *gin.Context) {
@@ -698,6 +750,65 @@ func Letter(r *gin.Engine) {
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
+		})
+
+		letter.GET("/letterTotal", func(ctx *gin.Context) {
+			var count int64
+
+			config.DB.Table("letters").
+				Select("letter_id").Count(&count)
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"total": count}, "")
+		})
+
+		letter.GET("/letterList", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+			var letters []models.Letter
+
+			getDb := config.DB.Table("letters").
+				Select("letter_id", "message", "created_at", "font", "recipient_name", "music_profile", "music_title", "password").
+				Find(&letters)
+
+			if getDb.RowsAffected < 1 {
+				utils.GetErrorJson("LETTER_LIST_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+				return
+			}
+
+			var result []LetterResponsePre
+
+			for _, l := range letters {
+				if l.Privacy == "private" || l.Password != "-" {
+					continue
+				}
+
+				item := LetterResponsePre{
+					LetterID:     l.LetterID,
+					MusicProfile: l.MusicProfile,
+					MusicTitle:   l.MusicTitle,
+					CreatedAt:    l.CreatedAt,
+					Message:      l.Message,
+					IsLocked:     false,
+				}
+
+				if l.ShowRecipient == "yes" {
+					item.RecipientName = l.RecipientName
+				} else {
+					item.RecipientName = "-"
+				}
+
+				if l.ShowSender == "yes" {
+					var user models.User
+					config.DB.Table("users").Select("name").Where("user_id = ?", l.UserID).First(&user)
+					item.Sender = user.Name
+				} else {
+					item.Sender = "-"
+				}
+
+				result = append(result, item)
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", result, "")
 		})
 	}
 }

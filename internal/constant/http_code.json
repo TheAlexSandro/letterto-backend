@@ -88,5 +88,10 @@
         "http": 403,
         "code": "BURNED",
         "message": "This letter has been burned."
+    },
+    "LETTER_LIST_EMPTY": {
+        "http": 404,
+        "code": "LETTER_LIST_EMPTY",
+        "message": "No letter found."
     }
 }
