@@ -43,6 +43,7 @@ type LetterResponse struct {
 	RecipientName string `json:"recipient_name"`
 	MusicProfile  string `json:"music_profile"`
 	MusicTitle    string `json:"music_title"`
+	Artist        string `json:"artist"`
 }
 
 type LetterInfoResp struct {
