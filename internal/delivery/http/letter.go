@@ -405,7 +405,7 @@ func Letter(r *gin.Engine) {
 			skip := (offset - 1) * limit
 
 			getDb := config.DB.Table("letters").
-				Select("letter_id", "user_id", "message", "created_at", "font", "recipient_name", "music_profile", "music_title").
+				Select("letter_id", "user_id", "message", "created_at", "font", "recipient_name", "music_profile", "music_title", "artist").
 				Where("user_id = ?", user.UserID).
 				Offset(skip).
 				Limit(limit).
