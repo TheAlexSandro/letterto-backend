@@ -5,6 +5,7 @@ import (
 	"LetterToBackend/internal/middleware"
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
+	"encoding/json"
 	"net/http"
 	"os"
 	"strconv"
@@ -47,31 +48,32 @@ type LetterResponse struct {
 }
 
 type LetterInfoResp struct {
-	ID            string `json:"id"`
-	UserID        string `json:"user_id"`
-	Message       string `json:"message"`
-	CreatedAt     string `json:"created_at"`
-	Font          string `json:"font"`
-	MusicProfile  string `json:"music_profile"`
-	MusicTitle    string `json:"music_title"`
-	Artist        string `json:"artist"`
-	Music         string `json:"music"`
-	Image         string `json:"image"`
-	Video         string `json:"video"`
-	Sender        string `json:"sender"`
-	RecipientName string `json:"recipient_name"`
+	ID            string  `json:"id"`
+	UserID        string  `json:"user_id"`
+	Message       string  `json:"message"`
+	CreatedAt     string  `json:"created_at"`
+	Font          string  `json:"font"`
+	MusicProfile  string  `json:"music_profile"`
+	MusicTitle    string  `json:"music_title"`
+	Artist        string  `json:"artist"`
+	Music         string  `json:"music"`
+	Image         *string `json:"image"`
+	Video         *string `json:"video"`
+	Sender        *string `json:"sender"`
+	RecipientName *string `json:"recipient_name"`
 }
 
 type LetterResponsePre struct {
-	LetterID      string `json:"letter_id"`
-	Message       string `json:"message"`
-	MusicProfile  string `json:"music_profile"`
-	MusicTitle    string `json:"music_title"`
-	CreatedAt     string `json:"created_at"`
-	RecipientName string `json:"recipient_name"`
-	Sender        string `json:"sender"`
-	Font          string `json:"font"`
-	IsLocked      bool   `json:"is_locked"`
+	LetterID      string  `json:"letter_id"`
+	Message       *string `json:"message"`
+	MusicProfile  string  `json:"music_profile"`
+	MusicTitle    string  `json:"music_title"`
+	Artist        string  `json:"artist"`
+	CreatedAt     string  `json:"created_at"`
+	RecipientName *string `json:"recipient_name"`
+	Sender        *string `json:"sender"`
+	Font          *string `json:"font"`
+	IsLocked      bool    `json:"is_locked"`
 }
 
 func Letter(r *gin.Engine) {
@@ -104,25 +106,35 @@ func Letter(r *gin.Engine) {
 				MusicTitle:   letterInfo.MusicTitle,
 				Artist:       letterInfo.Artist,
 				Music:        letterInfo.Music,
-				Image:        letterInfo.Image,
-				Video:        letterInfo.Video,
+			}
+
+			if letterInfo.Video != "-" {
+				letterData.Video = &letterInfo.Video
+			} else {
+				letterData.Video = nil
+			}
+
+			if letterInfo.Image != "-" {
+				letterData.Image = &letterInfo.Image
+			} else {
+				letterData.Image = nil
 			}
 
 			if letterInfo.ShowSender == "yes" {
 				var user models.User
 				if config.DB.Table("users").Select("name").Where("user_id = ?", letterInfo.UserID).First(&user).RowsAffected > 0 {
-					letterData.Sender = user.Name
+					letterData.Sender = &user.Name
 				} else {
-					letterData.Sender = "-"
+					letterData.Sender = nil
 				}
 			} else {
-				letterData.Sender = "-"
+				letterData.Sender = nil
 			}
 
 			if letterInfo.ShowRecipient == "yes" {
-				letterData.RecipientName = letterInfo.RecipientName
+				letterData.RecipientName = &letterInfo.RecipientName
 			} else {
-				letterData.RecipientName = "-"
+				letterData.RecipientName = nil
 			}
 
 			isLogin, userInfo := middleware.IsLogin(ctx)
@@ -145,7 +157,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			if letterInfo.Password != "-" && !middleware.VerifyLetter(ctx) {
+			if letterInfo.Password != "-" && !middleware.VerifyLetter(ctx, letter.ID) {
 				utils.GetErrorJson("LETTER_LOCKED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
@@ -192,7 +204,13 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			signedValue, cookieErr := utils.EncodeCookie(os.Getenv("KEY_SES_LETTER"), refreshToken)
+			cookieData := models.LetterCookieData{
+				SessionID: refreshToken,
+				LetterID:  input.ID,
+			}
+			jsonBytes, _ := json.Marshal(cookieData)
+
+			signedValue, cookieErr := utils.EncodeCookie(os.Getenv("KEY_SES_LETTER"), string(jsonBytes))
 			if cookieErr != nil {
 				utils.GetErrorJson("BAD_REQUEST", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -661,16 +679,16 @@ func Letter(r *gin.Engine) {
 				offset = 1
 			}
 			skip := (offset - 1) * 5
-			reciName := strings.TrimSpace(input.RecipientName)
+			reciName := "%" + strings.TrimSpace(input.RecipientName) + "%"
 
 			var total int64
 			config.DB.Table("letters").
-				Where("LOWER(recipient_name) = LOWER(?)", reciName).
+				Where("LOWER(recipient_name) LIKE LOWER(?)", reciName).
 				Count(&total)
 
 			config.DB.Table("letters").
-				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password").
-				Where("LOWER(recipient_name) = LOWER(?)", reciName).
+				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist").
+				Where("LOWER(recipient_name) LIKE LOWER(?)", reciName).
 				Offset(skip).
 				Limit(5).
 				Find(&letters)
@@ -683,33 +701,35 @@ func Letter(r *gin.Engine) {
 				}
 
 				item := LetterResponsePre{
-					LetterID:      l.LetterID,
-					MusicProfile:  l.MusicProfile,
-					MusicTitle:    l.MusicTitle,
-					CreatedAt:     l.CreatedAt,
-					RecipientName: l.RecipientName,
+					LetterID:     l.LetterID,
+					MusicProfile: l.MusicProfile,
+					MusicTitle:   l.MusicTitle,
+					CreatedAt:    l.CreatedAt,
+					Artist:       l.Artist,
 				}
 
 				if l.Password != "-" && l.Password != "" {
 					item.IsLocked = true
+					item.Message = nil
+					item.Font = nil
 				} else {
-					item.Message = l.Message
+					item.Message = &l.Message
 					item.IsLocked = false
-					item.Font = l.Font
+					item.Font = &l.Font
 				}
 
 				if l.ShowRecipient == "no" {
-					item.RecipientName = "-"
+					item.RecipientName = nil
 				} else {
-					item.RecipientName = l.RecipientName
+					item.RecipientName = &l.RecipientName
 				}
 
 				if l.ShowSender == "yes" {
 					var user models.User
 					config.DB.Table("users").Select("name").Where("user_id = ?", l.UserID).First(&user)
-					item.Sender = user.Name
+					item.Sender = &user.Name
 				} else {
-					item.Sender = "-"
+					item.Sender = nil
 				}
 
 				result = append(result, item)
@@ -795,22 +815,22 @@ func Letter(r *gin.Engine) {
 					MusicProfile: l.MusicProfile,
 					MusicTitle:   l.MusicTitle,
 					CreatedAt:    l.CreatedAt,
-					Message:      l.Message,
+					Message:      &l.Message,
 					IsLocked:     false,
 				}
 
 				if l.ShowRecipient == "yes" {
-					item.RecipientName = l.RecipientName
+					item.RecipientName = &l.RecipientName
 				} else {
-					item.RecipientName = "-"
+					item.RecipientName = nil
 				}
 
 				if l.ShowSender == "yes" {
 					var user models.User
 					config.DB.Table("users").Select("name").Where("user_id = ?", l.UserID).First(&user)
-					item.Sender = user.Name
+					item.Sender = &user.Name
 				} else {
-					item.Sender = "-"
+					item.Sender = nil
 				}
 
 				result = append(result, item)

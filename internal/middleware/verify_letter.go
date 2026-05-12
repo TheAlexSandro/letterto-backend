@@ -4,12 +4,13 @@ import (
 	"LetterToBackend/config"
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
+	"encoding/json"
 	"os"
 
 	"github.com/gin-gonic/gin"
 )
 
-func VerifyLetter(ctx *gin.Context) bool {
+func VerifyLetter(ctx *gin.Context, letterId string) bool {
 	getCookie, errCookie := ctx.Cookie(os.Getenv("KEY_SES_LETTER"))
 	if getCookie == "" || errCookie != nil {
 		return false
@@ -20,13 +21,21 @@ func VerifyLetter(ctx *gin.Context) bool {
 		return false
 	}
 
-	var letterSession models.LetterSession
-	getDb := config.DB.Table("letter_sessions").Select("session_id").Where("session_id = ?", decodeCookie).First(&letterSession)
+	var cookieData models.LetterCookieData
+	if err := json.Unmarshal([]byte(decodeCookie), &cookieData); err != nil {
+		return false
+	}
+
+	var t string
+	getDb := config.DB.Table("letter_sessions").
+		Where("session_id = ?", cookieData.SessionID).
+		Limit(1).Scan(&t)
+
 	if getDb.RowsAffected < 1 {
 		return false
 	}
 
-	if decodeCookie != letterSession.SessionID {
+	if cookieData.LetterID != letterId {
 		return false
 	}
 

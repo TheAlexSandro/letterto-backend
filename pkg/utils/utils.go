@@ -51,7 +51,7 @@ func GenerateID(length int) string {
 }
 
 func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 11)
 	if err != nil {
 		return "", err
 	}

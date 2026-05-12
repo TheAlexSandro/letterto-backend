@@ -51,3 +51,8 @@ type ErrorDetail struct {
 }
 
 var ErrorMapping map[string]ErrorDetail
+
+type LetterCookieData struct {
+	SessionID string `json:"session_id"`
+	LetterID  string `json:"letter_id"`
+}
