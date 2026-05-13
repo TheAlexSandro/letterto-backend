@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -74,6 +75,11 @@ type LetterResponsePre struct {
 	Sender        *string `json:"sender"`
 	Font          *string `json:"font"`
 	IsLocked      bool    `json:"is_locked"`
+}
+
+type LetterTimeoutResp struct {
+	LetterID string `json:"letter_id"`
+	TimeLeft int    `json:"time_left"`
 }
 
 func Letter(r *gin.Engine) {
@@ -195,7 +201,8 @@ func Letter(r *gin.Engine) {
 			newSession := models.LetterSession{
 				SessionID: refreshToken,
 				LetterID:  input.ID,
-				ExpiresAt: time.Now().Add(utils.GetExpiry()),
+				ExpiresAt: utils.NowTz().Add(utils.GetExpiry()),
+				AccessAt:  utils.NowTz(),
 			}
 
 			if err := config.DB.Table("letter_sessions").Create(&newSession).Error; err != nil {
@@ -217,11 +224,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			timeout, _ := strconv.Atoi(os.Getenv("COOKIE_TIMEOUT"))
 			http.SetCookie(ctx.Writer, &http.Cookie{
 				Name:     os.Getenv("KEY_SES_LETTER"),
 				Value:    signedValue,
 				Path:     "/",
-				MaxAge:   3600,
+				MaxAge:   timeout,
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: utils.SetCookieSameSite(),
@@ -253,6 +261,7 @@ func Letter(r *gin.Engine) {
 			showRecipient := ctx.PostForm("show_recipient")
 			artist := ctx.PostForm("artist")
 			viewOnce := ctx.PostForm("view_once")
+			timeout := ctx.PostForm("timeout")
 
 			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
@@ -345,6 +354,16 @@ func Letter(r *gin.Engine) {
 				password = "-"
 			}
 
+			var tms int
+			if timeout != "" {
+				tm, errT := utils.ParseMMSS(timeout)
+				if !errT {
+					utils.GetErrorJson("INVALID_TIMEOUT_FORMAT", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+				}
+				tms = tm
+			}
+
 			now := time.Now()
 			newLetter := models.Letter{
 				LetterID:      letterId,
@@ -362,6 +381,7 @@ func Letter(r *gin.Engine) {
 				CreatedAt:     now.Format("02/01/06"),
 				Artist:        artist,
 				ViewOnce:      viewOnce,
+				Timeout:       &tms,
 			}
 
 			if imageUrl != "" {
@@ -467,6 +487,7 @@ func Letter(r *gin.Engine) {
 			new_letterId := ctx.PostForm("new_letterid")
 			view_once := ctx.PostForm("view_once")
 			is_burned := ctx.PostForm("is_burned")
+			timeout := ctx.PostForm("timeout")
 
 			delImg := ctx.PostForm("image")
 			delVid := ctx.PostForm("video")
@@ -502,6 +523,13 @@ func Letter(r *gin.Engine) {
 
 			if new_letterId == "" {
 				new_letterId = existing.LetterID
+			}
+
+			var regex = regexp.MustCompile(`^[A-Za-z0-9_-]*[A-Za-z0-9_]$`)
+			if !regex.MatchString(new_letterId) {
+				utils.GetErrorJson("INVALID_ID_FORMAT", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
 			}
 
 			if is_burned == "" {
@@ -583,6 +611,18 @@ func Letter(r *gin.Engine) {
 				}
 			}
 
+			var tms int
+			if timeout != "" {
+				tm, errT := utils.ParseMMSS(timeout)
+				if !errT {
+					utils.GetErrorJson("INVALID_TIMEOUT_FORMAT", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+				}
+				tms = tm
+			} else if existing.Timeout != nil {
+				tms = *existing.Timeout
+			}
+
 			updateData := map[string]interface{}{
 				"letter_id":      new_letterId,
 				"recipient_name": strings.TrimSpace(recipientName),
@@ -599,6 +639,7 @@ func Letter(r *gin.Engine) {
 				"video":          videoUrl,
 				"view_once":      view_once,
 				"is_burned":      is_burned,
+				"timeout":        tms,
 			}
 
 			if password != "" && password != "-" {
@@ -753,7 +794,10 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			getDb := config.DB.Table("letters").Select("user_id", "view_once").Where("letter_id = ?", input.ID).First(&letter)
+			getDb := config.DB.Table("letters").
+				Select("user_id", "view_once", "timeout", "opened_at").
+				Where("letter_id = ?", input.ID).
+				First(&letter)
 
 			if getDb.RowsAffected < 1 {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
@@ -764,20 +808,79 @@ func Letter(r *gin.Engine) {
 			if letter.ViewOnce == "yes" {
 				verify, user := middleware.IsLogin(ctx)
 				shouldBurn := !verify || letter.UserID != user.UserID
-				if shouldBurn {
-					if err := config.DB.
-						Table("letters").
-						Where("letter_id = ?", input.ID).
-						Update("is_burned", "yes").Error; err != nil {
 
-						utils.GetErrorJson("BAD_REQUEST", &errJson)
-						utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-						return
+				if shouldBurn {
+					if letter.Timeout != nil {
+						now := utils.NowTz()
+						if letter.OpenedAt == nil {
+							result := config.DB.Table("letters").
+								Where("letter_id = ? AND opened_at IS NULL", input.ID).
+								Update("opened_at", now)
+
+							if result.RowsAffected > 0 {
+								letter.OpenedAt = &now
+							} else {
+								config.DB.Table("letters").
+									Select("opened_at").
+									Where("letter_id = ?", input.ID).
+									First(&letter)
+							}
+						}
+
+						expiredAt := letter.OpenedAt.Add(time.Duration(*letter.Timeout) * time.Second)
+						if now.After(expiredAt) {
+							config.DB.Table("letters").
+								Where("letter_id = ?", input.ID).
+								Update("is_burned", "yes")
+						}
+
+					} else {
+						if err := config.DB.Table("letters").
+							Where("letter_id = ?", input.ID).
+							Update("is_burned", "yes").Error; err != nil {
+
+							utils.GetErrorJson("BAD_REQUEST", &errJson)
+							utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+							return
+						}
 					}
 				}
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
+		})
+
+		letter.GET("/timeLeft", func(ctx *gin.Context) {
+			var input LetterInfo
+			var errJson models.ErrorDetail
+			var letter models.Letter
+
+			if err := ctx.ShouldBind(&input); err != nil {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "id", 1), nil, errJson.Code)
+				return
+			}
+
+			getDb := config.DB.Table("letters").
+				Select("opened_at", "timeout").
+				Where("letter_id = ?", input.ID).
+				First(&letter)
+
+			if getDb.RowsAffected < 1 {
+				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+				return
+			}
+
+			expiredAt := letter.OpenedAt.Add(time.Duration(*letter.Timeout) * time.Second)
+			remaining := time.Until(expiredAt)
+
+			resp := LetterTimeoutResp{
+				LetterID: input.ID,
+				TimeLeft: int(remaining.Seconds()),
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", resp, "")
 		})
 
 		letter.GET("/letterTotal", func(ctx *gin.Context) {

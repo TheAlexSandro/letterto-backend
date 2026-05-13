@@ -9,7 +9,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -76,7 +75,8 @@ func Auth(r *gin.Engine) {
 			newSession := models.Session{
 				RefreshToken: refreshToken,
 				UserID:       userId,
-				ExpiresAt:    time.Now().Add(utils.GetExpiry()),
+				ExpiresAt:    utils.NowTz().Add(utils.GetExpiry()),
+				LoginAt:      utils.NowTz(),
 			}
 
 			if err := config.DB.Table("users").Create(&newUser).Error; err != nil {
@@ -98,11 +98,12 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
+			timeout, _ := strconv.Atoi(os.Getenv("COOKIE_TIMEOUT"))
 			http.SetCookie(ctx.Writer, &http.Cookie{
 				Name:     os.Getenv("KEY_SES_USER"),
 				Value:    signedValue,
 				Path:     "/",
-				MaxAge:   3600,
+				MaxAge:   timeout,
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: utils.SetCookieSameSite(),
@@ -144,7 +145,8 @@ func Auth(r *gin.Engine) {
 			newSession := models.Session{
 				RefreshToken: refreshToken,
 				UserID:       user.UserID,
-				ExpiresAt:    time.Now().Add(utils.GetExpiry()),
+				ExpiresAt:    utils.NowTz().Add(utils.GetExpiry()),
+				LoginAt:      utils.NowTz(),
 			}
 
 			if err := config.DB.Table("sessions").Create(&newSession).Error; err != nil {
@@ -160,11 +162,12 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
+			timeout, _ := strconv.Atoi(os.Getenv("COOKIE_TIMEOUT"))
 			http.SetCookie(ctx.Writer, &http.Cookie{
 				Name:     os.Getenv("KEY_SES_USER"),
 				Value:    signedValue,
 				Path:     "/",
-				MaxAge:   3600,
+				MaxAge:   timeout,
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: utils.SetCookieSameSite(),

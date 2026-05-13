@@ -93,5 +93,15 @@
         "http": 404,
         "code": "LETTER_LIST_EMPTY",
         "message": "No letter found."
+    },
+    "INVALID_TIMEOUT": {
+        "http": 406,
+        "code": "INVALID_TIMEOUT",
+        "message": "Invalid timeout format, must be mm:ss"
+    },
+    "INVALID_ID_FORMAT": {
+        "http": 406,
+        "code": "INVALID_ID_FORMAT",
+        "message": "ID can only A-z, 0-9, -, _ and cannot be ended with -"
     }
 }

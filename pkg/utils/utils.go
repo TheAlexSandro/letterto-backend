@@ -51,11 +51,20 @@ func GenerateID(length int) string {
 }
 
 func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 11)
-	if err != nil {
-		return "", err
+	type result struct {
+		hash string
+		err  error
 	}
-	return string(bytes), nil
+
+	ch := make(chan result, 1)
+	cost, _ := strconv.Atoi(os.Getenv("BCRYPT_COST"))
+	go func() {
+		bytes, err := bcrypt.GenerateFromPassword([]byte(password), cost)
+		ch <- result{string(bytes), err}
+	}()
+
+	res := <-ch
+	return res.hash, res.err
 }
 
 func CheckPasswordHash(password, hash string) bool {
@@ -216,4 +225,30 @@ func TruncateText(s string, max int) string {
 	}
 
 	return string(runes[:max]) + "..."
+}
+
+func NowTz() time.Time {
+	var tz = time.FixedZone(os.Getenv("TIMEZONE"), 7*60*60)
+	return time.Now().In(tz)
+}
+
+func ParseMMSS(input string) (int, bool) {
+	parts := strings.Split(input, ":")
+	if len(parts) != 2 {
+		return 0, false
+	}
+
+	mm, err1 := strconv.Atoi(parts[0])
+	ss, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return 0, false
+	}
+
+	return (mm * 60) + ss, true
+}
+
+func SecondsToMMSS(seconds int) string {
+	mm := seconds / 60
+	ss := seconds % 60
+	return fmt.Sprintf("%02d:%02d", mm, ss)
 }
