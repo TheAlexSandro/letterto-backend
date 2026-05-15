@@ -21,8 +21,8 @@ type LetterInfo struct {
 }
 
 type VerifyPassword struct {
-	ID       string `form:"id" binding:"required"`
-	Password string `form:"password" binding:"required"`
+	ID       string `json:"id" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 type LetterSeach struct {
@@ -64,7 +64,7 @@ type LetterInfoResp struct {
 }
 
 type LetterResponsePre struct {
-	LetterID      string  `json:"letter_id"`
+	LetterID      *string `json:"letter_id"`
 	Message       *string `json:"message"`
 	MusicProfile  string  `json:"music_profile"`
 	MusicTitle    string  `json:"music_title"`
@@ -176,7 +176,7 @@ func Letter(r *gin.Engine) {
 			var input VerifyPassword
 			var letterInfo models.Letter
 
-			if err := ctx.ShouldBind(&input); err != nil {
+			if err := ctx.ShouldBindJSON(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "id, password", 1), nil, errJson.Code)
 				return
@@ -749,7 +749,7 @@ func Letter(r *gin.Engine) {
 				}
 
 				item := LetterResponsePre{
-					LetterID:     l.LetterID,
+					LetterID:     &l.LetterID,
 					MusicProfile: l.MusicProfile,
 					MusicTitle:   l.MusicTitle,
 					CreatedAt:    l.CreatedAt,
@@ -921,7 +921,7 @@ func Letter(r *gin.Engine) {
 				}
 
 				item := LetterResponsePre{
-					LetterID:     l.LetterID,
+					LetterID:     &l.LetterID,
 					MusicProfile: l.MusicProfile,
 					MusicTitle:   l.MusicTitle,
 					CreatedAt:    l.CreatedAt,
@@ -947,6 +947,45 @@ func Letter(r *gin.Engine) {
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", result, "")
+		})
+
+		letter.GET("/random", func(ctx *gin.Context) {
+			var letters []models.Letter
+
+			config.DB.Table("letters").
+				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist").
+				Where("privacy = ? AND password = ?", "public", "-").
+				Order("RANDOM()").
+				Limit(10).
+				Find(&letters)
+
+			var result []LetterResponsePre
+
+			for _, l := range letters {
+				item := LetterResponsePre{
+					LetterID:     nil,
+					MusicProfile: l.MusicProfile,
+					MusicTitle:   l.MusicTitle,
+					CreatedAt:    l.CreatedAt,
+					Artist:       l.Artist,
+					Message:      &l.Message,
+					IsLocked:     false,
+					Font:         &l.Font,
+					Sender:       nil,
+				}
+
+				if l.ShowRecipient == "no" {
+					item.RecipientName = nil
+				} else {
+					item.RecipientName = &l.RecipientName
+				}
+
+				result = append(result, item)
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{
+				"letters": result,
+			}, "")
 		})
 	}
 }
