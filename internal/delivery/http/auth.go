@@ -14,14 +14,14 @@ import (
 )
 
 type SignUp struct {
-	Name     string `form:"name" binding:"required"`
-	Username string `form:"username" binding:"required"`
-	Password string `form:"password" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 type SignIn struct {
-	Username string `form:"username" binding:"required"`
-	Password string `form:"password" binding:"required"`
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 func Auth(r *gin.Engine) {
@@ -31,7 +31,7 @@ func Auth(r *gin.Engine) {
 			var value SignUp
 			var errJson models.ErrorDetail
 
-			if err := ctx.ShouldBind(&value); err != nil {
+			if err := ctx.ShouldBindJSON(&value); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "name, username, password", 1), nil, "")
 				return
@@ -48,11 +48,11 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
-			conv, _ := strconv.Atoi(os.Getenv("LEN_MIN"))
-			if len(value.Password) < conv {
-				utils.GetErrorJson("LENGTH_TOO_SHORT", &errJson)
-				rplc := strings.NewReplacer("{param}", "password", "{len}", "8")
-				utils.JSON(ctx, errJson.Http, false, rplc.Replace(errJson.Message), nil, errJson.Code)
+			if !utils.ValidateLength(ctx, value.Password, "Password") || !utils.ValidateLength(ctx, value.Username, "Username") || !utils.ValidateLength(ctx, value.Name, "Name") {
+				return
+			}
+
+			if !utils.RegexFormat(value.Username, ctx, "Username") || !utils.RegexFormat(value.Password, ctx, "Password") {
 				return
 			}
 
@@ -118,9 +118,9 @@ func Auth(r *gin.Engine) {
 			var errJson models.ErrorDetail
 			var user models.User
 
-			if err := ctx.ShouldBind(&value); err != nil {
+			if err := ctx.ShouldBindJSON(&value); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "username, password", 1), nil, errJson.Code)
 				return
 			}
 

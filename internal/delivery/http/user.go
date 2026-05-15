@@ -13,10 +13,10 @@ import (
 )
 
 type UserResponse struct {
-	Name        string `form:"name"`
-	Username    string `form:"username"`
-	Password    string `form:"password"`
-	OldPassword string `form:"old_password"`
+	Name        string `json:"name"`
+	Username    string `json:"username"`
+	NewPassword string `json:"new_password"`
+	OldPassword string `json:"old_password"`
 }
 
 func User(r *gin.Engine) {
@@ -32,32 +32,36 @@ func User(r *gin.Engine) {
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
-			ctx.ShouldBind(&value)
-			fmt.Println(value.Name, value.Username, value.Password, value.OldPassword)
+			ctx.ShouldBindJSON(&value)
 
-			if value.Name == "" && value.Username == "" && value.Password == "" && value.OldPassword == "" {
+			if value.Name == "" && value.Username == "" && value.NewPassword == "" && value.OldPassword == "" {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "one of name, username, password", 1), nil, errJson.Code)
 				return
 			}
 
-			if value.Password != "" && value.OldPassword == "" {
+			if (value.NewPassword != "" && !utils.ValidateLength(ctx, value.NewPassword, "Password")) || (value.Username != "" && !utils.ValidateLength(ctx, value.Username, "Username")) || (value.Name != "" && !utils.ValidateLength(ctx, value.Name, "Name")) {
+				return
+			}
+
+			if (value.Username != "" && !utils.RegexFormat(value.Username, ctx, "Username")) || (value.NewPassword != "" && !utils.RegexFormat(value.NewPassword, ctx, "Password")) {
+				return
+			}
+
+			if value.NewPassword != "" && value.OldPassword == "" {
 				utils.GetErrorJson("OPTIONAL_PARAMETER_REQUIRED", &errJson)
 				rplc := strings.NewReplacer("{opt_param}", "old_password", "{param}", "password")
 				utils.JSON(ctx, errJson.Http, false, rplc.Replace(errJson.Message), nil, errJson.Code)
 				return
 			}
 
-			if value.OldPassword != "" && value.Password == "" {
+			if value.OldPassword != "" && value.NewPassword == "" {
 				utils.JSON(ctx, 400, false, "You forget something?", nil, "FORGET?")
 				return
 			}
 
-			if value.Password != "" && value.OldPassword != "" {
-				if len(value.Password) < 8 {
-					utils.GetErrorJson("LENGTH_TOO_SHORT", &errJson)
-					rplc := strings.NewReplacer("{param}", "password", "{len}", "8")
-					utils.JSON(ctx, errJson.Http, false, rplc.Replace(errJson.Message), nil, errJson.Code)
+			if value.NewPassword != "" && value.OldPassword != "" {
+				if !utils.ValidateLength(ctx, value.NewPassword, "Password") {
 					return
 				}
 
@@ -67,10 +71,10 @@ func User(r *gin.Engine) {
 					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 					return
 				}
-				hash, _ := utils.HashPassword(value.Password)
-				value.Password = hash
+				hash, _ := utils.HashPassword(value.NewPassword)
+				value.NewPassword = hash
 			} else {
-				value.Password = user.Password
+				value.NewPassword = user.Password
 			}
 
 			if value.Username != user.Username {
@@ -97,7 +101,7 @@ func User(r *gin.Engine) {
 				UserID:   user.UserID,
 				Name:     value.Name,
 				Username: value.Username,
-				Password: value.Password,
+				Password: value.NewPassword,
 			}
 
 			if dbErr := config.DB.Table("users").Save(&editProfile).Error; dbErr != nil {
@@ -112,6 +116,7 @@ func User(r *gin.Engine) {
 		User.POST("/logout", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
+			fmt.Println("MASUK")
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)

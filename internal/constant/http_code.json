@@ -57,7 +57,12 @@
     "LENGTH_TOO_LONG": {
         "http": 414,
         "code": "LENGTH_TOO_LONG",
-        "message": "The length for {param} is too long, max is {len} characters."
+        "message": "{param} is too long, max is {len} characters."
+    },
+    "LENGTH_TOO_SHORT": {
+        "http": 400,
+        "code": "LENGTH_TOO_SHORT",
+        "message": "{param} is too short, min is {len} characters."
     },
     "FILE_TOO_LARGE": {
         "http": 413,
@@ -79,11 +84,6 @@
         "code": "TOO_MANY_FILES",
         "message": "Only 1 file at the time is allowed."
     },
-    "LENGTH_TOO_SHORT": {
-        "http": 400,
-        "code": "LENGTH_TOO_SHORT",
-        "message": "The length for {param} is too short, min is {len} characters."
-    },
     "BURNED": {
         "http": 403,
         "code": "BURNED",
@@ -99,9 +99,14 @@
         "code": "INVALID_TIMEOUT",
         "message": "Invalid timeout format, must be mm:ss"
     },
-    "INVALID_ID_FORMAT": {
+    "INVALID_FORMAT": {
         "http": 406,
-        "code": "INVALID_ID_FORMAT",
-        "message": "ID can only A-z, 0-9, -, _ and cannot be ended with -"
+        "code": "INVALID_FORMAT",
+        "message": "{param} can only A-z, 0-9, -, _ and cannot be ended with -"
+    },
+    "INVALID_PASS_FORMAT": {
+        "http": 406,
+        "code": "INVALID_PASS_FORMAT",
+        "message": "Password cannot contain spaces."
     }
 }

@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -123,7 +124,7 @@ func ValidateLength(ctx *gin.Context, value string, paramName string) bool {
 	maxLen, _ := strconv.Atoi(os.Getenv("LEN_MAX"))
 	minLen, _ := strconv.Atoi(os.Getenv("LEN_MIN"))
 
-	if paramName == "password" && len(value) < minLen {
+	if paramName == "Password" && len(value) < minLen {
 		var errJson models.ErrorDetail
 		GetErrorJson("LENGTH_TOO_SHORT", &errJson)
 
@@ -136,7 +137,7 @@ func ValidateLength(ctx *gin.Context, value string, paramName string) bool {
 		return false
 	}
 
-	if len(value) > maxLen {
+	if paramName != "Password" && len(value) > maxLen {
 		var errJson models.ErrorDetail
 		GetErrorJson("LENGTH_TOO_LONG", &errJson)
 
@@ -251,4 +252,27 @@ func SecondsToMMSS(seconds int) string {
 	mm := seconds / 60
 	ss := seconds % 60
 	return fmt.Sprintf("%02d:%02d", mm, ss)
+}
+
+func RegexFormat(s string, ctx *gin.Context, param string) bool {
+	var regex *regexp.Regexp
+	if param == "Password" {
+		regex = regexp.MustCompile(`^\S+$`)
+	} else {
+		regex = regexp.MustCompile(`^[A-Za-z0-9_-]*[A-Za-z0-9_]$`)
+	}
+
+	var errJson models.ErrorDetail
+
+	if !regex.MatchString(s) {
+		if param == "Password" {
+			GetErrorJson("INVALID_PASS_FORMAT", &errJson)
+			JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+		} else {
+			GetErrorJson("INVALID_FORMAT", &errJson)
+			JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", param, 1), nil, errJson.Code)
+		}
+		return false
+	}
+	return true
 }

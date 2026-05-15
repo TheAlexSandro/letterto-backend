@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -283,7 +282,11 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			if !utils.ValidateLength(ctx, letterId, "letter_id") || (password != "" && !utils.ValidateLength(ctx, password, "password")) {
+			if !utils.ValidateLength(ctx, letterId, "ID") || (password != "" && !utils.ValidateLength(ctx, password, "Password")) {
+				return
+			}
+
+			if !utils.RegexFormat(letterId, ctx, "ID") {
 				return
 			}
 
@@ -352,6 +355,10 @@ func Letter(r *gin.Engine) {
 
 			if password == "" {
 				password = "-"
+			} else {
+				if !utils.RegexFormat(password, ctx, "Password") {
+					return
+				}
 			}
 
 			var tms int
@@ -516,20 +523,13 @@ func Letter(r *gin.Engine) {
 					return
 				}
 
-				if !utils.ValidateLength(ctx, new_letterId, "letter_id") {
+				if !utils.ValidateLength(ctx, new_letterId, "ID") {
 					return
 				}
 			}
 
 			if new_letterId == "" {
 				new_letterId = existing.LetterID
-			}
-
-			var regex = regexp.MustCompile(`^[A-Za-z0-9_-]*[A-Za-z0-9_]$`)
-			if !regex.MatchString(new_letterId) {
-				utils.GetErrorJson("INVALID_ID_FORMAT", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
 			}
 
 			if is_burned == "" {
@@ -539,6 +539,10 @@ func Letter(r *gin.Engine) {
 			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
 				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
 				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) {
+				return
+			}
+
+			if !utils.RegexFormat(new_letterId, ctx, "ID") {
 				return
 			}
 
@@ -643,7 +647,10 @@ func Letter(r *gin.Engine) {
 			}
 
 			if password != "" && password != "-" {
-				if utils.ValidateLength(ctx, password, "password") {
+				if utils.ValidateLength(ctx, password, "Password") {
+					if !utils.RegexFormat(password, ctx, "Password") {
+						return
+					}
 					updateData["password"] = password
 				} else {
 					return
