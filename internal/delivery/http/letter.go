@@ -735,7 +735,7 @@ func Letter(r *gin.Engine) {
 				Count(&total)
 
 			config.DB.Table("letters").
-				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist").
+				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist", "is_burned").
 				Where("LOWER(recipient_name) LIKE LOWER(?)", reciName).
 				Offset(skip).
 				Limit(5).
@@ -744,7 +744,7 @@ func Letter(r *gin.Engine) {
 			var result []LetterResponsePre
 
 			for _, l := range letters {
-				if l.Privacy == "private" {
+				if l.Privacy == "private" || l.IsBurned == "yes" {
 					continue
 				}
 
@@ -953,8 +953,8 @@ func Letter(r *gin.Engine) {
 			var letters []models.Letter
 
 			config.DB.Table("letters").
-				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist").
-				Where("privacy = ? AND password = ?", "public", "-").
+				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist", "is_burned").
+				Where("privacy = ? AND password = ? AND is_burned = ?", "public", "-", "no").
 				Order("RANDOM()").
 				Limit(10).
 				Find(&letters)
