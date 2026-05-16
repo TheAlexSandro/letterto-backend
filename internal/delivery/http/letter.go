@@ -6,6 +6,7 @@ import (
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
 	"encoding/json"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"strconv"
@@ -726,34 +727,31 @@ func Letter(r *gin.Engine) {
 			if err != nil || offset < 1 {
 				offset = 1
 			}
-			skip := (offset - 1) * 5
+			skip := (offset - 1) * 7
 			reciName := "%" + strings.TrimSpace(input.RecipientName) + "%"
 
 			var total int64
 			config.DB.Table("letters").
-				Where("LOWER(recipient_name) LIKE LOWER(?)", reciName).
+				Where("recipient_name ILIKE ?", reciName).
 				Count(&total)
 
 			config.DB.Table("letters").
 				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist", "is_burned").
-				Where("LOWER(recipient_name) LIKE LOWER(?)", reciName).
+				Where("recipient_name ILIKE ? AND privacy = ? AND is_burned = ? AND show_recipient = ?", reciName, "public", "no", "yes").
 				Offset(skip).
-				Limit(5).
+				Limit(7).
 				Find(&letters)
 
 			var result []LetterResponsePre
 
 			for _, l := range letters {
-				if l.Privacy == "private" || l.IsBurned == "yes" {
-					continue
-				}
-
 				item := LetterResponsePre{
-					LetterID:     &l.LetterID,
-					MusicProfile: l.MusicProfile,
-					MusicTitle:   l.MusicTitle,
-					CreatedAt:    l.CreatedAt,
-					Artist:       l.Artist,
+					LetterID:      &l.LetterID,
+					MusicProfile:  l.MusicProfile,
+					MusicTitle:    l.MusicTitle,
+					CreatedAt:     l.CreatedAt,
+					Artist:        l.Artist,
+					RecipientName: &l.RecipientName,
 				}
 
 				if l.Password != "-" && l.Password != "" {
@@ -766,12 +764,6 @@ func Letter(r *gin.Engine) {
 					item.Font = &l.Font
 				}
 
-				if l.ShowRecipient == "no" {
-					item.RecipientName = nil
-				} else {
-					item.RecipientName = &l.RecipientName
-				}
-
 				if l.ShowSender == "yes" {
 					var user models.User
 					config.DB.Table("users").Select("name").Where("user_id = ?", l.UserID).First(&user)
@@ -782,6 +774,10 @@ func Letter(r *gin.Engine) {
 
 				result = append(result, item)
 			}
+
+			rand.Shuffle(len(result), func(i, j int) {
+				result[i], result[j] = result[j], result[i]
+			})
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{
 				"total":   total,
