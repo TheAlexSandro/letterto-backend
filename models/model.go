@@ -9,6 +9,8 @@ type User struct {
 	Name     string `gorm:"type:varchar(100);not null" json:"name"`
 	Username string `gorm:"uniqueIndex;type:text;not null" json:"username"`
 	Password string `gorm:"type:text;not null" json:"password"`
+	Profile  string `gorm:"type:text;default-" json:"profile"`
+	Role     string `gorm:"type:text;default:user" json:"role"`
 }
 
 type Session struct {

@@ -2,7 +2,6 @@ package http
 
 import (
 	"LetterToBackend/config"
-	"LetterToBackend/internal/middleware"
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
 	"net/http"
@@ -25,9 +24,9 @@ type SignIn struct {
 }
 
 func Auth(r *gin.Engine) {
-	auth := r.Group("/auth")
+	Auth := r.Group("/auth")
 	{
-		auth.POST("/signUp", func(ctx *gin.Context) {
+		Auth.POST("/signUp", func(ctx *gin.Context) {
 			var value SignUp
 			var errJson models.ErrorDetail
 
@@ -70,6 +69,7 @@ func Auth(r *gin.Engine) {
 				Name:     value.Name,
 				Username: value.Username,
 				Password: string(hashedPw),
+				Profile:  "-",
 			}
 
 			newSession := models.Session{
@@ -113,7 +113,7 @@ func Auth(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		auth.POST("/signIn", func(ctx *gin.Context) {
+		Auth.POST("/signIn", func(ctx *gin.Context) {
 			var value SignIn
 			var errJson models.ErrorDetail
 			var user models.User
@@ -175,19 +175,6 @@ func Auth(r *gin.Engine) {
 			})
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
-		})
-
-		auth.GET("/accountInfo", func(ctx *gin.Context) {
-			var errJson models.ErrorDetail
-
-			verify, user := middleware.IsLogin(ctx)
-			if !verify {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
-			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"user_id": user.UserID, "name": user.Name, "username": user.Username}, "")
 		})
 	}
 }

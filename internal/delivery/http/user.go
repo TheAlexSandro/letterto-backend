@@ -127,5 +127,18 @@ func User(r *gin.Engine) {
 			config.DB.Where("user_id = ?", user.UserID).Delete(&models.Session{})
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
+
+		User.GET("/accountInfo", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"user_id": user.UserID, "name": user.Name, "username": user.Username}, "")
+		})
 	}
 }

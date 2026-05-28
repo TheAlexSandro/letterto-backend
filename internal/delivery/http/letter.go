@@ -115,13 +115,15 @@ func Letter(r *gin.Engine) {
 			}
 
 			if letterInfo.Video != "-" {
-				letterData.Video = &letterInfo.Video
+				videoUrl, _ := utils.GenerateSignedURL(letterInfo.Video)
+				letterData.Video = &videoUrl
 			} else {
 				letterData.Video = nil
 			}
 
 			if letterInfo.Image != "-" {
-				letterData.Image = &letterInfo.Image
+				imageUrl, _ := utils.GenerateSignedURL(letterInfo.Image)
+				letterData.Image = &imageUrl
 			} else {
 				letterData.Image = nil
 			}
@@ -395,7 +397,13 @@ func Letter(r *gin.Engine) {
 			if imageUrl != "" {
 				newLetter.Image = imageUrl
 			} else {
+				newLetter.Image = "-"
+			}
+
+			if videoUrl != "" {
 				newLetter.Video = videoUrl
+			} else {
+				newLetter.Video = "-"
 			}
 
 			if err := config.DB.Table("letters").Create(&newLetter).Error; err != nil {
@@ -606,10 +614,10 @@ func Letter(r *gin.Engine) {
 
 					newUrl, errUpload := utils.UploadToR2(file)
 					if errUpload == nil {
-						if fieldName == "image" {
+						switch fieldName {
+						case "image":
 							imageUrl = newUrl
-						}
-						if fieldName == "video" {
+						case "video":
 							videoUrl = newUrl
 						}
 					}
@@ -688,7 +696,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			getDB := config.DB.Table("letters").Select("user_id").Where("letter_id = ? AND user_id = ?", input.ID, user.UserID).First(&letter)
+			getDB := config.DB.Table("letters").Where("letter_id = ? AND user_id = ?", input.ID, user.UserID).First(&letter)
 			if getDB.RowsAffected < 1 {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -958,6 +966,10 @@ func Letter(r *gin.Engine) {
 			var result []LetterResponsePre
 
 			for _, l := range letters {
+				if len(l.Message) < 40 {
+					continue
+				}
+
 				item := LetterResponsePre{
 					LetterID:     nil,
 					MusicProfile: l.MusicProfile,

@@ -24,7 +24,7 @@ func IsLogin(ctx *gin.Context) (bool, *models.User) {
 
 	var user models.User
 	result := config.DB.Table("users").
-		Select("users.user_id", "users.name", "users.username", "users.password").
+		Select("users.user_id", "users.name", "users.username", "users.password", "users.role").
 		Joins("JOIN sessions ON sessions.user_id = users.user_id").
 		Where("sessions.refresh_token = ? AND sessions.expires_at > ?", decodeCookie, time.Now()).
 		First(&user)
