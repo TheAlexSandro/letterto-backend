@@ -2,10 +2,15 @@ package utils
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
-	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,13 +27,15 @@ type signedURLCache struct {
 	expiresAt time.Time
 }
 
+type SignedPayload struct {
+	Key string `json:"key"`
+	Exp int64  `json:"exp"`
+}
+
 var (
 	urlCache  = make(map[string]signedURLCache)
 	urlCache_ sync.RWMutex
 )
-
-const signedURLExpiry = 3 * time.Minute
-const cacheBuffer = 30 * time.Second
 
 func InitR2() {
 	r2Endpoint := os.Getenv("R2_END")
@@ -36,7 +43,13 @@ func InitR2() {
 	r2SecretKey := os.Getenv("R2_SECRET")
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(r2AccessKey, r2SecretKey, "")),
+		config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(
+				r2AccessKey,
+				r2SecretKey,
+				"",
+			),
+		),
 		config.WithRegion("auto"),
 	)
 	if err != nil {
@@ -46,7 +59,9 @@ func InitR2() {
 	R2Client = s3.NewFromConfig(cfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(r2Endpoint)
 	})
+
 	go cleanupURLCache()
+
 	fmt.Println("Connected to R2 Storage.")
 }
 
@@ -58,6 +73,7 @@ func UploadToR2(file *multipart.FileHeader) (string, error) {
 	defer f.Close()
 
 	fileName := GenerateID(30)
+
 	_, err = R2Client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:       aws.String(os.Getenv("R2_BUCKET")),
 		Key:          aws.String(fileName),
@@ -68,6 +84,7 @@ func UploadToR2(file *multipart.FileHeader) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return fileName, nil
 }
 
@@ -75,6 +92,7 @@ func DeleteFromR2(fileUrl string) error {
 	if fileUrl == "" {
 		return nil
 	}
+
 	_, err := R2Client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
 		Bucket: aws.String(os.Getenv("R2_BUCKET")),
 		Key:    aws.String(fileUrl),
@@ -90,6 +108,11 @@ func DeleteFromR2(fileUrl string) error {
 }
 
 func GenerateSignedURL(key string) (string, error) {
+	getSigExp, _ := strconv.Atoi(os.Getenv("SIGNED_URL_EXP"))
+	signedURLExpiry := time.Duration(getSigExp) * time.Minute
+	getCaBuff, _ := strconv.Atoi(os.Getenv("CACHE_BUFFER"))
+	cacheBuffer := time.Duration(getCaBuff) * time.Minute
+
 	urlCache_.RLock()
 	cached, found := urlCache[key]
 	urlCache_.RUnlock()
@@ -98,22 +121,31 @@ func GenerateSignedURL(key string) (string, error) {
 		return cached.url, nil
 	}
 
-	presignClient := s3.NewPresignClient(R2Client)
-	req, err := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
-		Bucket: aws.String(os.Getenv("R2_BUCKET")),
-		Key:    aws.String(key),
-	}, s3.WithPresignExpires(signedURLExpiry))
+	payload := SignedPayload{
+		Key: key,
+		Exp: time.Now().Add(signedURLExpiry).Unix(),
+	}
+
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
 
-	parsed, err := url.Parse(req.URL)
-	if err != nil {
-		return "", err
-	}
-	parsed.Host = os.Getenv("R2_PUBLIC_URL")
-	parsed.Scheme = "https"
-	finalURL := parsed.String()
+	token := base64.RawURLEncoding.EncodeToString(payloadBytes)
+
+	h := hmac.New(sha256.New, []byte(os.Getenv("SIGN_SECRET")))
+	h.Write(payloadBytes)
+
+	signature := hex.EncodeToString(h.Sum(nil))
+
+	finalURL := fmt.Sprintf(
+		"https://%s/%s?token=%s&sig=%s",
+		os.Getenv("R2_PUBLIC_URL"),
+		key,
+		token,
+		signature,
+	)
+
 	urlCache_.Lock()
 	urlCache[key] = signedURLCache{
 		url:       finalURL,
@@ -127,8 +159,10 @@ func GenerateSignedURL(key string) (string, error) {
 func cleanupURLCache() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
+
 	for range ticker.C {
 		now := time.Now()
+
 		urlCache_.Lock()
 		for key, cached := range urlCache {
 			if now.After(cached.expiresAt) {
