@@ -149,7 +149,19 @@ func Letter(r *gin.Engine) {
 			isOwner := isLogin && letterInfo.UserID == userInfo.UserID
 
 			if isOwner && letter.Edit == "yes" {
-				utils.JSON(ctx, http.StatusOK, true, "Success!", letterInfo, "")
+				editData := letterInfo
+
+				if letterInfo.Image != "-" {
+					imageUrl, _ := utils.GenerateSignedURL(letterInfo.Image)
+					editData.Image = imageUrl
+				}
+
+				if letterInfo.Video != "-" {
+					videoUrl, _ := utils.GenerateSignedURL(letterInfo.Video)
+					editData.Video = videoUrl
+				}
+
+				utils.JSON(ctx, http.StatusOK, true, "Success!", editData, "")
 				return
 			}
 
@@ -958,7 +970,7 @@ func Letter(r *gin.Engine) {
 
 			config.DB.Table("letters").
 				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist", "is_burned").
-				Where("privacy = ? AND password = ? AND is_burned = ?", "public", "-", "no").
+				Where("privacy = ? AND password = ? AND is_burned = ? AND LENGTH(message) > ?", "public", "-", "no", 70).
 				Order("RANDOM()").
 				Limit(10).
 				Find(&letters)
@@ -966,10 +978,6 @@ func Letter(r *gin.Engine) {
 			var result []LetterResponsePre
 
 			for _, l := range letters {
-				if len(l.Message) < 40 {
-					continue
-				}
-
 				item := LetterResponsePre{
 					LetterID:     nil,
 					MusicProfile: l.MusicProfile,
