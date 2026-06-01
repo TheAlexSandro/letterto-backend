@@ -102,6 +102,8 @@ func User(r *gin.Engine) {
 				Name:     value.Name,
 				Username: value.Username,
 				Password: value.NewPassword,
+				Profile:  "-",
+				Role:     "user",
 			}
 
 			if dbErr := config.DB.Table("users").Save(&editProfile).Error; dbErr != nil {
