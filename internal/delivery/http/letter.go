@@ -323,48 +323,47 @@ func Letter(r *gin.Engine) {
 			}
 
 			for fieldName, files := range form.File {
-				for _, file := range files {
-					if len(files) == 0 {
-						continue
-					}
+				if len(files) > 1 {
+					utils.GetErrorJson("TOO_MANY_FILES", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+					return
+				}
 
-					if len(files) > 1 {
-						utils.GetErrorJson("TOO_MANY_FILES", &errJson)
-						utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				file := files[0]
+				switch fieldName {
+				case "image":
+					size, _ := strconv.Atoi(os.Getenv("IMAGE_MAX_SIZE"))
+					if file.Size > int64(size) {
+						utils.InvFileSizeRes(ctx, "image", int64(size))
 						return
 					}
-
-					switch fieldName {
-					case "image":
-						size, _ := strconv.Atoi(os.Getenv("IMAGE_MAX_SIZE"))
-						if file.Size > int64(size) {
-							utils.InvFileSizeRes(ctx, "image", int64(size))
-							return
-						}
-					case "video":
-						size, _ := strconv.Atoi(os.Getenv("VIDEO_MAX_SIZE"))
-						if file.Size > int64(size) {
-							utils.InvFileSizeRes(ctx, "video", int64(size))
-							return
-						}
-					}
-					fileType, errType := utils.GetFileType(file)
-					if errType != nil || fileType != allowed[fieldName] {
-						utils.GetErrorJson("INVALID_FILETYPE", &errJson)
-						utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+				case "video":
+					size, _ := strconv.Atoi(os.Getenv("VIDEO_MAX_SIZE"))
+					if file.Size > int64(size) {
+						utils.InvFileSizeRes(ctx, "video", int64(size))
 						return
 					}
-					url, errUpload := utils.UploadToR2(file)
-					if errUpload != nil {
-						continue
-					}
+				}
 
-					switch fieldName {
-					case "image":
-						imageUrl = url
-					case "video":
-						videoUrl = url
-					}
+				fileType, errType := utils.GetFileType(file)
+				if errType != nil || fileType != allowed[fieldName] {
+					utils.GetErrorJson("INVALID_FILETYPE", &errJson)
+					utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+					return
+				}
+
+				url, errUpload := utils.UploadToR2(file)
+				if errUpload != nil {
+					utils.GetErrorJson("BAD_REQUEST", &errJson)
+					utils.JSON(ctx, errJson.Http, false, "File upload failed", nil, errJson.Code)
+					return
+				}
+
+				switch fieldName {
+				case "image":
+					imageUrl = url
+				case "video":
+					videoUrl = url
 				}
 			}
 
@@ -376,14 +375,15 @@ func Letter(r *gin.Engine) {
 				}
 			}
 
-			var tms int
+			var timeoutPtr *int
 			if timeout != "" {
 				tm, errT := utils.ParseMMSS(timeout)
 				if !errT {
 					utils.GetErrorJson("INVALID_TIMEOUT_FORMAT", &errJson)
 					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+					return
 				}
-				tms = tm
+				timeoutPtr = &tm
 			}
 
 			now := time.Now()
@@ -403,7 +403,7 @@ func Letter(r *gin.Engine) {
 				CreatedAt:     now.Format("02/01/06"),
 				Artist:        artist,
 				ViewOnce:      viewOnce,
-				Timeout:       &tms,
+				Timeout:       timeoutPtr,
 			}
 
 			if imageUrl != "" {
@@ -570,11 +570,11 @@ func Letter(r *gin.Engine) {
 			imageUrl := existing.Image
 			videoUrl := existing.Video
 
-			if delImg == "-" && imageUrl != "" {
+			if delImg == "-" && imageUrl != "-" && imageUrl != "" {
 				utils.DeleteFromR2(imageUrl)
 				imageUrl = "-"
 			}
-			if delVid == "-" && videoUrl != "" {
+			if delVid == "-" && videoUrl != "-" && videoUrl != "" {
 				utils.DeleteFromR2(videoUrl)
 				videoUrl = "-"
 			}
@@ -617,21 +617,24 @@ func Letter(r *gin.Engine) {
 						return
 					}
 
-					if fieldName == "image" && imageUrl != "" {
-						utils.DeleteFromR2(imageUrl)
-					}
-					if fieldName == "video" && videoUrl != "" {
-						utils.DeleteFromR2(videoUrl)
+					newUrl, errUpload := utils.UploadToR2(file)
+					if errUpload != nil {
+						utils.GetErrorJson("BAD_REQUEST", &errJson)
+						utils.JSON(ctx, errJson.Http, false, "File upload failed", nil, errJson.Code)
+						return
 					}
 
-					newUrl, errUpload := utils.UploadToR2(file)
-					if errUpload == nil {
-						switch fieldName {
-						case "image":
-							imageUrl = newUrl
-						case "video":
-							videoUrl = newUrl
+					switch fieldName {
+					case "image":
+						if imageUrl != "-" && imageUrl != "" {
+							utils.DeleteFromR2(imageUrl)
 						}
+						imageUrl = newUrl
+					case "video":
+						if videoUrl != "-" && videoUrl != "" {
+							utils.DeleteFromR2(videoUrl)
+						}
+						videoUrl = newUrl
 					}
 				}
 			}
@@ -642,6 +645,7 @@ func Letter(r *gin.Engine) {
 				if !errT {
 					utils.GetErrorJson("INVALID_TIMEOUT_FORMAT", &errJson)
 					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+					return
 				}
 				tms = tm
 			} else if existing.Timeout != nil {
