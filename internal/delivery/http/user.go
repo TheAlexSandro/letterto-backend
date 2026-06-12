@@ -5,7 +5,6 @@ import (
 	"LetterToBackend/internal/middleware"
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -118,7 +117,6 @@ func User(r *gin.Engine) {
 		User.POST("/logout", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
-			fmt.Println("MASUK")
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
