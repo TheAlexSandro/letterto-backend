@@ -38,7 +38,7 @@ func Auth(r *gin.Engine) {
 
 			var t string
 			getUser := config.DB.Table("users").Select("user_id", "name", "username").
-				Where("username = ?", value.Username).
+				Where("LOWER(username) = ?", strings.ToLower(value.Username)).
 				Limit(1).Scan(&t)
 
 			if getUser.RowsAffected > 0 {
@@ -125,7 +125,7 @@ func Auth(r *gin.Engine) {
 			}
 
 			getUser := config.DB.Table("users").Select("user_id", "password").
-				Where("username = ?", value.Username).
+				Where("LOWER(username) = ?", strings.ToLower(value.Username)).
 				First(&user)
 
 			if getUser.RowsAffected < 1 {

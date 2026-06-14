@@ -96,7 +96,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			if err := config.DB.Table("letters").Where("letter_id = ?", letter.ID).First(&letterInfo).Error; err != nil {
+			if err := config.DB.Table("letters").Where("LOWER(letter_id) = ?", strings.ToLower(letter.ID)).First(&letterInfo).Error; err != nil {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
@@ -284,7 +284,7 @@ func Letter(r *gin.Engine) {
 			}
 
 			var t string
-			getDb := config.DB.Table("letters").Select("letter_id").Where("letter_id = ?", letterId).Limit(1).Scan(&t)
+			getDb := config.DB.Table("letters").Select("letter_id").Where("LOWER(letter_id) = ?", strings.ToLower(letterId)).Limit(1).Scan(&t)
 			if getDb.RowsAffected > 0 {
 				utils.GetErrorJson("ID_OCCUPIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{id}", letterId, 1), nil, errJson.Code)
@@ -536,7 +536,7 @@ func Letter(r *gin.Engine) {
 
 			if letterId != new_letterId {
 				var checkId string
-				config.DB.Table("letters").Select("letter_id").Where("letter_id = ?", new_letterId).Limit(1).Scan(&checkId)
+				config.DB.Table("letters").Select("letter_id").Where("LOWER(letter_id) = ?", strings.ToLower(new_letterId)).Limit(1).Scan(&checkId)
 				if checkId != "" {
 					utils.GetErrorJson("ID_OCCUPIED", &errJson)
 					msg := strings.Replace(errJson.Message, "{id}", new_letterId, 1)
