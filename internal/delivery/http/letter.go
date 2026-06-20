@@ -179,7 +179,13 @@ func Letter(r *gin.Engine) {
 
 			if letterInfo.Password != "-" && !middleware.VerifyLetter(ctx, letter.ID) {
 				utils.GetErrorJson("LETTER_LOCKED", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				var reci *string
+				if letterInfo.ShowRecipient == "yes" {
+					reci = &letterInfo.RecipientName
+				} else {
+					reci = nil
+				}
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, gin.H{"recipient_name": reci}, errJson.Code)
 				return
 			}
 
