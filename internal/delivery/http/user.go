@@ -60,6 +60,12 @@ func User(r *gin.Engine) {
 				return
 			}
 
+			if user.Role == "banned" && (value.Name != "" || value.Username != "") {
+				utils.GetErrorJson("BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			if (value.NewPassword != "" && !utils.ValidateLength(ctx, value.NewPassword, "Password")) || (value.Username != "" && !utils.ValidateLength(ctx, value.Username, "Username")) || (value.Name != "" && !utils.ValidateLength(ctx, value.Name, "Name")) {
 				return
 			}
@@ -97,14 +103,6 @@ func User(r *gin.Engine) {
 				value.NewPassword = user.Password
 			}
 
-			if value.Username != user.Username || value.Name != user.Name {
-				if user.Role == "banned" {
-					utils.GetErrorJson("BANNED", &errJson)
-					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-					return
-				}
-			}
-
 			if value.Username != user.Username {
 				var t string
 				verif := config.DB.Table("users").Select("username").Where("username = ?", value.Username).Limit(1).Scan(&t)
@@ -131,7 +129,7 @@ func User(r *gin.Engine) {
 				Username: value.Username,
 				Password: value.NewPassword,
 				Profile:  "-",
-				Role:     "user",
+				Role:     user.Role,
 			}
 
 			if dbErr := config.DB.Table("users").Save(&editProfile).Error; dbErr != nil {

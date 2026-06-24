@@ -123,5 +123,10 @@
         "http": 403,
         "code": "LETTER_BANNED",
         "message": "This letter has been banned."
+    },
+    "RESTRICTED_MODIFICATION": {
+        "http": 403,
+        "code": "RESTRICTED_MODIFICATION",
+        "message": "This letter is restricted from these changes."
     }
 }

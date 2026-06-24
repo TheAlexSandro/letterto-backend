@@ -84,10 +84,15 @@ type LetterTimeoutResp struct {
 	TimeLeft int    `json:"time_left"`
 }
 
+type LetterAction struct {
+	LetterId string `json:"letter_id"`
+	Action   string `json:"action"`
+}
+
 func Letter(r *gin.Engine) {
-	letter := r.Group("letter")
+	Letter := r.Group("letter")
 	{
-		letter.GET("/getInfo", func(ctx *gin.Context) {
+		Letter.GET("/getInfo", func(ctx *gin.Context) {
 			var letter LetterInfo
 			var errJson models.ErrorDetail
 			var letterInfo models.Letter
@@ -155,6 +160,7 @@ func Letter(r *gin.Engine) {
 
 			isLogin, userInfo := middleware.IsLogin(ctx)
 			isOwner := isLogin && letterInfo.UserID == userInfo.UserID
+			isPrivileged := isLogin && (userInfo.Role == "admin" || userInfo.Role == "owner")
 
 			if isOwner && letter.Edit == "yes" {
 				editData := letterInfo
@@ -179,13 +185,13 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			if !isOwner && letterInfo.IsBurned == "yes" {
+			if !isOwner && !isPrivileged && letterInfo.IsBurned == "yes" {
 				utils.GetErrorJson("BURNED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
 
-			if letterInfo.Password != "-" && !middleware.VerifyLetter(ctx, letter.ID) {
+			if !isPrivileged && letterInfo.Password != "-" && !middleware.VerifyLetter(ctx, letter.ID) {
 				utils.GetErrorJson("LETTER_LOCKED", &errJson)
 				var reci *string
 				if letterInfo.ShowRecipient == "yes" {
@@ -200,7 +206,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterData, "")
 		})
 
-		letter.POST("/verifyPassword", func(ctx *gin.Context) {
+		Letter.POST("/verifyPassword", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var input VerifyPassword
 			var letterInfo models.Letter
@@ -267,7 +273,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		letter.POST("/new", func(ctx *gin.Context) {
+		Letter.POST("/new", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
@@ -448,7 +454,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"letter_id": letterId}, "")
 		})
 
-		letter.GET("/total", func(ctx *gin.Context) {
+		Letter.GET("/total", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
@@ -471,7 +477,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"total": c}, "")
 		})
 
-		letter.GET("/myLetters", func(ctx *gin.Context) {
+		Letter.GET("/myLetters", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var letterList []LetterResponse
 			var input MyLetter
@@ -523,7 +529,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterList, "")
 		})
 
-		letter.POST("/edit", func(ctx *gin.Context) {
+		Letter.POST("/edit", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
@@ -544,14 +550,16 @@ func Letter(r *gin.Engine) {
 			music := ctx.PostForm("music")
 			musicProfile := ctx.PostForm("music_profile")
 			musicTitle := ctx.PostForm("music_title")
+			artist := ctx.PostForm("artist")
+
 			privacy := ctx.PostForm("privacy")
 			password := ctx.PostForm("password")
 			font := ctx.PostForm("font")
 			showSender := ctx.PostForm("show_sender")
 			showRecipient := ctx.PostForm("show_recipient")
-			artist := ctx.PostForm("artist")
 			new_letterId := ctx.PostForm("new_letterid")
 			view_once := ctx.PostForm("view_once")
+
 			is_burned := ctx.PostForm("is_burned")
 			timeout := ctx.PostForm("timeout")
 
@@ -567,6 +575,12 @@ func Letter(r *gin.Engine) {
 
 			if existing.Warn == "2" {
 				utils.GetErrorJson("LETTER_BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if existing.Warn == "1" && (existing.Privacy != privacy || existing.Password != password || existing.Font != font || existing.ShowSender != showSender || existing.ShowRecipient != showRecipient || existing.LetterID != new_letterId || existing.ViewOnce != view_once) {
+				utils.GetErrorJson("RESTRICTED_MODIFICATION", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -738,7 +752,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"letter_id": letterId}, "")
 		})
 
-		letter.POST("/remove", func(ctx *gin.Context) {
+		Letter.POST("/remove", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var input LetterInfo
 			var letter models.Letter
@@ -785,7 +799,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		letter.GET("/search", func(ctx *gin.Context) {
+		Letter.GET("/search", func(ctx *gin.Context) {
 			var input LetterSeach
 			var errJson models.ErrorDetail
 			var letters []models.Letter
@@ -805,14 +819,23 @@ func Letter(r *gin.Engine) {
 			skip := (offset - 1) * 7
 			reciName := "%" + strings.TrimSpace(input.RecipientName) + "%"
 
-			var total int64
-			config.DB.Table("letters").
-				Where("recipient_name ILIKE ?", reciName).
-				Count(&total)
+			isLogin, userInfo := middleware.IsLogin(ctx)
+			isPrivileged := isLogin && (userInfo.Role == "admin" || userInfo.Role == "owner")
 
-			config.DB.Table("letters").
+			countQuery := config.DB.Table("letters").Where("recipient_name ILIKE ?", reciName)
+			findQuery := config.DB.Table("letters").
 				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist", "is_burned").
-				Where("recipient_name ILIKE ? AND privacy = ? AND is_burned = ? AND show_recipient = ? AND warn = ?", reciName, "public", "no", "yes", "-").
+				Where("recipient_name ILIKE ?", reciName)
+
+			if !isPrivileged {
+				countQuery = countQuery.Where("privacy = ? AND is_burned = ? AND show_recipient = ? AND warn = ?", "public", "no", "yes", "-")
+				findQuery = findQuery.Where("privacy = ? AND is_burned = ? AND show_recipient = ? AND warn = ?", "public", "no", "yes", "-")
+			}
+
+			var total int64
+			countQuery.Count(&total)
+
+			findQuery.
 				Offset(skip).
 				Limit(7).
 				Find(&letters)
@@ -861,7 +884,7 @@ func Letter(r *gin.Engine) {
 			}, "")
 		})
 
-		letter.POST("/burn", func(ctx *gin.Context) {
+		Letter.POST("/burn", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var letter models.Letter
 			var input LetterInfo
@@ -885,41 +908,43 @@ func Letter(r *gin.Engine) {
 
 			if letter.ViewOnce == "yes" {
 				verify, user := middleware.IsLogin(ctx)
-				shouldBurn := !verify || letter.UserID != user.UserID
+				if !(user.Role == "owner" || user.Role == "admin") {
+					shouldBurn := !verify || letter.UserID != user.UserID
 
-				if shouldBurn {
-					if letter.Timeout != nil {
-						now := utils.NowTz()
-						if letter.OpenedAt == nil {
-							result := config.DB.Table("letters").
-								Where("letter_id = ? AND opened_at IS NULL", input.ID).
-								Update("opened_at", now)
+					if shouldBurn {
+						if letter.Timeout != nil {
+							now := utils.NowTz()
+							if letter.OpenedAt == nil {
+								result := config.DB.Table("letters").
+									Where("letter_id = ? AND opened_at IS NULL", input.ID).
+									Update("opened_at", now)
 
-							if result.RowsAffected > 0 {
-								letter.OpenedAt = &now
-							} else {
-								config.DB.Table("letters").
-									Select("opened_at").
-									Where("letter_id = ?", input.ID).
-									First(&letter)
+								if result.RowsAffected > 0 {
+									letter.OpenedAt = &now
+								} else {
+									config.DB.Table("letters").
+										Select("opened_at").
+										Where("letter_id = ?", input.ID).
+										First(&letter)
+								}
 							}
-						}
 
-						expiredAt := letter.OpenedAt.Add(time.Duration(*letter.Timeout) * time.Second)
-						if now.After(expiredAt) {
-							config.DB.Table("letters").
+							expiredAt := letter.OpenedAt.Add(time.Duration(*letter.Timeout) * time.Second)
+							if now.After(expiredAt) {
+								config.DB.Table("letters").
+									Where("letter_id = ?", input.ID).
+									Update("is_burned", "yes")
+							}
+
+						} else {
+							if err := config.DB.Table("letters").
 								Where("letter_id = ?", input.ID).
-								Update("is_burned", "yes")
-						}
+								Update("is_burned", "yes").Error; err != nil {
 
-					} else {
-						if err := config.DB.Table("letters").
-							Where("letter_id = ?", input.ID).
-							Update("is_burned", "yes").Error; err != nil {
-
-							utils.GetErrorJson("BAD_REQUEST", &errJson)
-							utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-							return
+								utils.GetErrorJson("BAD_REQUEST", &errJson)
+								utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+								return
+							}
 						}
 					}
 				}
@@ -928,7 +953,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		letter.GET("/timeLeft", func(ctx *gin.Context) {
+		Letter.GET("/timeLeft", func(ctx *gin.Context) {
 			var input LetterInfo
 			var errJson models.ErrorDetail
 			var letter models.Letter
@@ -961,7 +986,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", resp, "")
 		})
 
-		letter.GET("/letterTotal", func(ctx *gin.Context) {
+		Letter.GET("/letterTotal", func(ctx *gin.Context) {
 			var count int64
 
 			config.DB.Table("letters").
@@ -970,7 +995,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"total": count}, "")
 		})
 
-		letter.GET("/random", func(ctx *gin.Context) {
+		Letter.GET("/random", func(ctx *gin.Context) {
 			var letters []models.Letter
 
 			config.DB.Table("letters").
@@ -1007,6 +1032,43 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{
 				"letters": result,
 			}, "")
+		})
+
+		Letter.POST("/action", func(ctx *gin.Context) {
+			var input LetterAction
+			var errJson models.ErrorDetail
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify || !(user.Role == "owner" || user.Role == "admin") {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+			ctx.ShouldBindJSON(&input)
+
+			if input.LetterId == "" || input.Action == "" {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "letterId, action", 1), nil, errJson.Code)
+				return
+			}
+
+			var letterInfo models.Letter
+			if err := config.DB.Table("letters").Where("LOWER(letter_id) = ?", strings.ToLower(input.LetterId)).First(&letterInfo).Error; err != nil {
+				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+			newWarnStatus := input.Action
+
+			if err := config.DB.Table("letters").
+				Where("letter_id = ?", letterInfo.LetterID).
+				Update("warn", newWarnStatus).Error; err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "success", nil, "")
 		})
 	}
 }
