@@ -41,6 +41,7 @@ type Letter struct {
 	IsBurned      string     `gorm:"type:varchar(3);default:no" json:"is_burned"`
 	Timeout       *int       `gorm:"type:integer" json:"timeout"`
 	OpenedAt      *time.Time `gorm:"type:timestamptz" json:"opened_at"`
+	Warn          string     `gorm:"type:text" json:"warn"`
 }
 
 type LetterSession struct {

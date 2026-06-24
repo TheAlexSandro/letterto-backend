@@ -46,6 +46,7 @@ type LetterResponse struct {
 	MusicProfile  string `json:"music_profile"`
 	MusicTitle    string `json:"music_title"`
 	Artist        string `json:"artist"`
+	Warn          string `json:"warn"`
 }
 
 type LetterInfoResp struct {
@@ -62,6 +63,7 @@ type LetterInfoResp struct {
 	Video         *string `json:"video"`
 	Sender        *string `json:"sender"`
 	RecipientName *string `json:"recipient_name"`
+	Warn          *string `json:"warn"`
 }
 
 type LetterResponsePre struct {
@@ -143,6 +145,12 @@ func Letter(r *gin.Engine) {
 				letterData.RecipientName = &letterInfo.RecipientName
 			} else {
 				letterData.RecipientName = nil
+			}
+
+			if letterInfo.Warn == "-" {
+				letterData.Warn = nil
+			} else {
+				letterData.Warn = &letterInfo.Warn
 			}
 
 			isLogin, userInfo := middleware.IsLogin(ctx)
@@ -264,6 +272,12 @@ func Letter(r *gin.Engine) {
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if user.Role == "banned" {
+				utils.GetErrorJson("BANNED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -410,6 +424,7 @@ func Letter(r *gin.Engine) {
 				Artist:        artist,
 				ViewOnce:      viewOnce,
 				Timeout:       timeoutPtr,
+				Warn:          "-",
 			}
 
 			if imageUrl != "" {
@@ -442,6 +457,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if user.Role == "banned" {
+				utils.GetErrorJson("BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			var c int64
 			config.DB.Table("letters").
 				Select("letter_id").
@@ -462,6 +483,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if user.Role == "banned" {
+				utils.GetErrorJson("BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			if err := ctx.ShouldBind(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "offset", 1), nil, "")
@@ -478,7 +505,6 @@ func Letter(r *gin.Engine) {
 			skip := (offset - 1) * limit
 
 			getDb := config.DB.Table("letters").
-				Select("letter_id", "user_id", "message", "created_at", "font", "recipient_name", "music_profile", "music_title", "artist").
 				Where("user_id = ?", user.UserID).
 				Offset(skip).
 				Limit(limit).
@@ -506,6 +532,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if user.Role == "banned" {
+				utils.GetErrorJson("BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			letterId := ctx.PostForm("letter_id")
 			recipientName := ctx.PostForm("recipient_name")
 			message := ctx.PostForm("message")
@@ -529,6 +561,12 @@ func Letter(r *gin.Engine) {
 			var existing models.Letter
 			if err := config.DB.Table("letters").Where("letter_id = ? AND user_id = ?", letterId, user.UserID).First(&existing).Error; err != nil {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if existing.Warn == "2" {
+				utils.GetErrorJson("LETTER_BANNED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -675,6 +713,7 @@ func Letter(r *gin.Engine) {
 				"view_once":      view_once,
 				"is_burned":      is_burned,
 				"timeout":        tms,
+				"warn":           existing.Warn,
 			}
 
 			if password != "" && password != "-" {
@@ -707,6 +746,12 @@ func Letter(r *gin.Engine) {
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if user.Role == "banned" {
+				utils.GetErrorJson("BANNED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -767,7 +812,7 @@ func Letter(r *gin.Engine) {
 
 			config.DB.Table("letters").
 				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_sender", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist", "is_burned").
-				Where("recipient_name ILIKE ? AND privacy = ? AND is_burned = ? AND show_recipient = ?", reciName, "public", "no", "yes").
+				Where("recipient_name ILIKE ? AND privacy = ? AND is_burned = ? AND show_recipient = ? AND warn = ?", reciName, "public", "no", "yes", "-").
 				Offset(skip).
 				Limit(7).
 				Find(&letters)
@@ -925,62 +970,12 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"total": count}, "")
 		})
 
-		letter.GET("/letterList", func(ctx *gin.Context) {
-			var errJson models.ErrorDetail
-			var letters []models.Letter
-
-			getDb := config.DB.Table("letters").
-				Select("letter_id", "message", "created_at", "font", "recipient_name", "music_profile", "music_title", "password").
-				Find(&letters)
-
-			if getDb.RowsAffected < 1 {
-				utils.GetErrorJson("LETTER_LIST_EMPTY", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
-				return
-			}
-
-			var result []LetterResponsePre
-
-			for _, l := range letters {
-				if l.Privacy == "private" || l.Password != "-" {
-					continue
-				}
-
-				item := LetterResponsePre{
-					LetterID:     &l.LetterID,
-					MusicProfile: l.MusicProfile,
-					MusicTitle:   l.MusicTitle,
-					CreatedAt:    l.CreatedAt,
-					Message:      &l.Message,
-					IsLocked:     false,
-				}
-
-				if l.ShowRecipient == "yes" {
-					item.RecipientName = &l.RecipientName
-				} else {
-					item.RecipientName = nil
-				}
-
-				if l.ShowSender == "yes" {
-					var user models.User
-					config.DB.Table("users").Select("name").Where("user_id = ?", l.UserID).First(&user)
-					item.Sender = &user.Name
-				} else {
-					item.Sender = nil
-				}
-
-				result = append(result, item)
-			}
-
-			utils.JSON(ctx, http.StatusOK, true, "Success!", result, "")
-		})
-
 		letter.GET("/random", func(ctx *gin.Context) {
 			var letters []models.Letter
 
 			config.DB.Table("letters").
 				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist", "is_burned").
-				Where("privacy = ? AND password = ? AND is_burned = ? AND LENGTH(message) > ?", "public", "-", "no", 70).
+				Where("privacy = ? AND password = ? AND is_burned = ? AND LENGTH(message) > ? AND warn = ?", "public", "-", "no", 70, "-").
 				Order("RANDOM()").
 				Limit(10).
 				Find(&letters)

@@ -108,5 +108,20 @@
         "http": 406,
         "code": "INVALID_PASS_FORMAT",
         "message": "Password cannot contain spaces."
+    },
+    "ROLE_LOCKED": {
+        "http": 403,
+        "code": "ROLE_LOCKED",
+        "message": "This role can't be changed."
+    },
+    "BANNED": {
+        "http": 403,
+        "code": "BANNED",
+        "message": "This account has been banned."
+    },
+    "LETTER_BANNED": {
+        "http": 403,
+        "code": "LETTER_BANNED",
+        "message": "This letter has been banned."
     }
 }

@@ -6,6 +6,7 @@ import (
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,26 @@ type UserResponse struct {
 	Username    string `json:"username"`
 	NewPassword string `json:"new_password"`
 	OldPassword string `json:"old_password"`
+}
+
+type UsersList struct {
+	Offset string `form:"offset"`
+}
+
+type UserSearch struct {
+	Name   string `form:"name"`
+	Role   string `form:"role"`
+	Offset string `form:"offset" binding:"required"`
+}
+
+type ChangeRole struct {
+	UserId string `json:"user_id" binding:"required"`
+	Role   string `json:"role" binding:"required"`
+}
+
+type ChangePass struct {
+	UserId   string `json:"user_id" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 func User(r *gin.Engine) {
@@ -74,6 +95,14 @@ func User(r *gin.Engine) {
 				value.NewPassword = hash
 			} else {
 				value.NewPassword = user.Password
+			}
+
+			if value.Username != user.Username || value.Name != user.Name {
+				if user.Role == "banned" {
+					utils.GetErrorJson("BANNED", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+					return
+				}
 			}
 
 			if value.Username != user.Username {
@@ -138,7 +167,233 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"user_id": user.UserID, "name": user.Name, "username": user.Username}, "")
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"user_id": user.UserID, "name": user.Name, "username": user.Username, "role": user.Role}, "")
+		})
+
+		User.GET("/users", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+			var value UsersList
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify || !(user.Role == "owner" || user.Role == "admin") {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+			ctx.ShouldBind(&value)
+			if value.Offset == "" {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "offset", 1), nil, errJson.Code)
+				return
+			}
+
+			offset, err := strconv.Atoi(value.Offset)
+			if err != nil || offset < 0 {
+				utils.GetErrorJson("PARAMETER_INVALID", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "offset", 1), nil, errJson.Code)
+				return
+			}
+
+			const limit = 20
+
+			var users []models.User
+			var total int64
+
+			if err := config.DB.Model(&models.User{}).Count(&total).Error; err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if err := config.DB.
+				Limit(limit).
+				Offset(offset).
+				Find(&users).Error; err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "success", gin.H{
+				"users":  users,
+				"total":  total,
+				"limit":  limit,
+				"offset": offset,
+			}, "")
+		})
+
+		User.GET("/searchUser", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+			var value UserSearch
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify || !(user.Role == "owner" || user.Role == "admin") {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+			ctx.ShouldBind(&value)
+			if value.Offset == "" {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "name, offset", 1), nil, errJson.Code)
+				return
+			}
+
+			offset, err := strconv.Atoi(value.Offset)
+			if err != nil || offset < 0 {
+				utils.GetErrorJson("PARAMETER_INVALID", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "offset", 1), nil, errJson.Code)
+				return
+			}
+
+			const limit = 20
+			query := config.DB.Model(&models.User{})
+			if value.Name != "" {
+				keyword := "%" + value.Name + "%"
+				query = query.Where(
+					config.DB.
+						Where("name ILIKE ?", keyword).
+						Or("username ILIKE ?", keyword),
+				)
+			}
+			if value.Role != "" {
+				query = query.Where("role = ?", value.Role)
+			}
+
+			var total int64
+			if err := query.Count(&total).Error; err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			var users []models.User
+			if err := query.
+				Limit(limit).
+				Offset(offset).
+				Find(&users).Error; err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "success", gin.H{
+				"users":  users,
+				"total":  total,
+				"limit":  limit,
+				"offset": offset,
+			}, "")
+		})
+
+		User.POST("/changeRole", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+			var value ChangeRole
+			var users models.User
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify || !(user.Role == "owner" || user.Role == "admin") {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+			ctx.ShouldBindJSON(&value)
+			if value.UserId == "" || value.Role == "" {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "user_id, role", 1), nil, errJson.Code)
+				return
+			}
+
+			getUser := config.DB.Table("users").
+				Where("LOWER(user_id) = ?", strings.ToLower(value.UserId)).
+				First(&users)
+
+			if getUser.RowsAffected < 1 {
+				utils.GetErrorJson("USER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if users.Role == "owner" {
+				utils.GetErrorJson("ROLE_LOCKED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			editProfile := models.User{
+				UserID:   users.UserID,
+				Name:     users.Name,
+				Username: users.Username,
+				Password: users.Password,
+				Profile:  "-",
+				Role:     value.Role,
+			}
+
+			if dbErr := config.DB.Table("users").Save(&editProfile).Error; dbErr != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
+		})
+
+		User.POST("/changePass", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+			var value ChangePass
+			var users models.User
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify || !(user.Role == "owner" || user.Role == "admin") {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+			ctx.ShouldBindJSON(&value)
+			if value.UserId == "" || value.Password == "" {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "user_id, password", 1), nil, errJson.Code)
+				return
+			}
+
+			getUser := config.DB.Table("users").
+				Where("LOWER(user_id) = ?", strings.ToLower(value.UserId)).
+				First(&users)
+
+			if getUser.RowsAffected < 1 {
+				utils.GetErrorJson("USER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if users.Role == "owner" {
+				utils.GetErrorJson("ROLE_LOCKED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			hashedPw, err := utils.HashPassword(value.Password)
+			if err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			editProfile := models.User{
+				UserID:   users.UserID,
+				Name:     users.Name,
+				Username: users.Username,
+				Password: hashedPw,
+				Profile:  "-",
+				Role:     users.Role,
+			}
+
+			if dbErr := config.DB.Table("users").Save(&editProfile).Error; dbErr != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 	}
 }
