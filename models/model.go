@@ -42,6 +42,7 @@ type Letter struct {
 	Timeout       *int       `gorm:"type:integer" json:"timeout"`
 	OpenedAt      *time.Time `gorm:"type:timestamptz" json:"opened_at"`
 	Warn          string     `gorm:"type:text" json:"warn"`
+	Viewer        int        `gorm:"type:integer;default:0" json:"viewer"`
 }
 
 type LetterSession struct {

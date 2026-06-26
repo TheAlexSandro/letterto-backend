@@ -47,6 +47,7 @@ type LetterResponse struct {
 	MusicTitle    string `json:"music_title"`
 	Artist        string `json:"artist"`
 	Warn          string `json:"warn"`
+	Viewer        int    `json:"viewer"`
 }
 
 type LetterInfoResp struct {
@@ -64,6 +65,7 @@ type LetterInfoResp struct {
 	Sender        *string `json:"sender"`
 	RecipientName *string `json:"recipient_name"`
 	Warn          *string `json:"warn"`
+	Viewer        *int    `json:"viewer"`
 }
 
 type LetterResponsePre struct {
@@ -106,6 +108,52 @@ func Letter(r *gin.Engine) {
 			if err := config.DB.Table("letters").Where("LOWER(letter_id) = ?", strings.ToLower(letter.ID)).First(&letterInfo).Error; err != nil {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			isLogin, userInfo := middleware.IsLogin(ctx)
+			isOwner := isLogin && letterInfo.UserID == userInfo.UserID
+			isPrivileged := isLogin && (userInfo.Role == "admin" || userInfo.Role == "owner")
+
+			if isOwner && letter.Edit == "yes" {
+				editData := letterInfo
+
+				if letterInfo.Image != "-" {
+					imageUrl, _ := utils.GenerateSignedURL(letterInfo.Image)
+					editData.Image = imageUrl
+				}
+
+				if letterInfo.Video != "-" {
+					videoUrl, _ := utils.GenerateSignedURL(letterInfo.Video)
+					editData.Video = videoUrl
+				}
+
+				editData.Viewer = letterInfo.Viewer
+				utils.JSON(ctx, http.StatusOK, true, "Success!", editData, "")
+				return
+			}
+
+			if letter.Edit == "yes" && !isOwner {
+				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if !isOwner && !isPrivileged && letterInfo.IsBurned == "yes" {
+				utils.GetErrorJson("BURNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if !isPrivileged && letterInfo.Password != "-" && !middleware.VerifyLetter(ctx, letter.ID) {
+				utils.GetErrorJson("LETTER_LOCKED", &errJson)
+				var reci *string
+				if letterInfo.ShowRecipient == "yes" {
+					reci = &letterInfo.RecipientName
+				} else {
+					reci = nil
+				}
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, gin.H{"recipient_name": reci}, errJson.Code)
 				return
 			}
 
@@ -158,49 +206,31 @@ func Letter(r *gin.Engine) {
 				letterData.Warn = &letterInfo.Warn
 			}
 
-			isLogin, userInfo := middleware.IsLogin(ctx)
-			isOwner := isLogin && letterInfo.UserID == userInfo.UserID
-			isPrivileged := isLogin && (userInfo.Role == "admin" || userInfo.Role == "owner")
+			getCookie, _ := ctx.Cookie("letter-view__")
+			if getCookie == "" {
+				newView := letterInfo.Viewer + 1
+				config.DB.Table("letters").
+					Where("letter_id = ?", letterInfo.LetterID).
+					Update("viewer", newView)
 
-			if isOwner && letter.Edit == "yes" {
-				editData := letterInfo
-
-				if letterInfo.Image != "-" {
-					imageUrl, _ := utils.GenerateSignedURL(letterInfo.Image)
-					editData.Image = imageUrl
+				token := utils.GenerateID(50)
+				signedValue, cookieErr := utils.EncodeCookie("letter-view__", token)
+				if cookieErr != nil {
+					utils.GetErrorJson("BAD_REQUEST", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+					return
 				}
 
-				if letterInfo.Video != "-" {
-					videoUrl, _ := utils.GenerateSignedURL(letterInfo.Video)
-					editData.Video = videoUrl
-				}
-
-				utils.JSON(ctx, http.StatusOK, true, "Success!", editData, "")
-				return
-			}
-
-			if letter.Edit == "yes" && !isOwner {
-				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
-			if !isOwner && !isPrivileged && letterInfo.IsBurned == "yes" {
-				utils.GetErrorJson("BURNED", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
-			if !isPrivileged && letterInfo.Password != "-" && !middleware.VerifyLetter(ctx, letter.ID) {
-				utils.GetErrorJson("LETTER_LOCKED", &errJson)
-				var reci *string
-				if letterInfo.ShowRecipient == "yes" {
-					reci = &letterInfo.RecipientName
-				} else {
-					reci = nil
-				}
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, gin.H{"recipient_name": reci}, errJson.Code)
-				return
+				http.SetCookie(ctx.Writer, &http.Cookie{
+					Name:     "letter-view__",
+					Value:    signedValue,
+					Path:     "/",
+					MaxAge:   86400,
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: utils.SetCookieSameSite(),
+					Domain:   os.Getenv("DOMAIN"),
+				})
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterData, "")
@@ -431,6 +461,7 @@ func Letter(r *gin.Engine) {
 				ViewOnce:      viewOnce,
 				Timeout:       timeoutPtr,
 				Warn:          "-",
+				Viewer:        0,
 			}
 
 			if imageUrl != "" {
@@ -728,6 +759,7 @@ func Letter(r *gin.Engine) {
 				"is_burned":      is_burned,
 				"timeout":        tms,
 				"warn":           existing.Warn,
+				"viewer":         existing.Viewer,
 			}
 
 			if password != "" && password != "-" {
