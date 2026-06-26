@@ -206,7 +206,7 @@ func Letter(r *gin.Engine) {
 				letterData.Warn = &letterInfo.Warn
 			}
 
-			getCookie, _ := ctx.Cookie("letter-view__")
+			getCookie, _ := ctx.Cookie(letterInfo.LetterID + "-view__")
 			if getCookie == "" {
 				newView := letterInfo.Viewer + 1
 				config.DB.Table("letters").
@@ -214,7 +214,7 @@ func Letter(r *gin.Engine) {
 					Update("viewer", newView)
 
 				token := utils.GenerateID(50)
-				signedValue, cookieErr := utils.EncodeCookie("letter-view__", token)
+				signedValue, cookieErr := utils.EncodeCookie(letterInfo.LetterID+"-view__", token)
 				if cookieErr != nil {
 					utils.GetErrorJson("BAD_REQUEST", &errJson)
 					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -222,7 +222,7 @@ func Letter(r *gin.Engine) {
 				}
 
 				http.SetCookie(ctx.Writer, &http.Cookie{
-					Name:     "letter-view__",
+					Name:     letterInfo.LetterID + "-view__",
 					Value:    signedValue,
 					Path:     "/",
 					MaxAge:   86400,
