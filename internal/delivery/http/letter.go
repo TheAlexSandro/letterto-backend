@@ -206,31 +206,33 @@ func Letter(r *gin.Engine) {
 				letterData.Warn = &letterInfo.Warn
 			}
 
-			getCookie, _ := ctx.Cookie(letterInfo.LetterID + "-view__")
-			if getCookie == "" {
-				newView := letterInfo.Viewer + 1
-				config.DB.Table("letters").
-					Where("letter_id = ?", letterInfo.LetterID).
-					Update("viewer", newView)
+			if !isOwner && !isPrivileged {
+				getCookie, _ := ctx.Cookie(letterInfo.LetterID + "-view__")
+				if getCookie == "" {
+					newView := letterInfo.Viewer + 1
+					config.DB.Table("letters").
+						Where("letter_id = ?", letterInfo.LetterID).
+						Update("viewer", newView)
 
-				token := utils.GenerateID(50)
-				signedValue, cookieErr := utils.EncodeCookie(letterInfo.LetterID+"-view__", token)
-				if cookieErr != nil {
-					utils.GetErrorJson("BAD_REQUEST", &errJson)
-					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-					return
+					token := utils.GenerateID(50)
+					signedValue, cookieErr := utils.EncodeCookie(letterInfo.LetterID+"-view__", token)
+					if cookieErr != nil {
+						utils.GetErrorJson("BAD_REQUEST", &errJson)
+						utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+						return
+					}
+
+					http.SetCookie(ctx.Writer, &http.Cookie{
+						Name:     letterInfo.LetterID + "-view__",
+						Value:    signedValue,
+						Path:     "/",
+						MaxAge:   86400,
+						HttpOnly: true,
+						Secure:   true,
+						SameSite: utils.SetCookieSameSite(),
+						Domain:   os.Getenv("DOMAIN"),
+					})
 				}
-
-				http.SetCookie(ctx.Writer, &http.Cookie{
-					Name:     letterInfo.LetterID + "-view__",
-					Value:    signedValue,
-					Path:     "/",
-					MaxAge:   86400,
-					HttpOnly: true,
-					Secure:   true,
-					SameSite: utils.SetCookieSameSite(),
-					Domain:   os.Getenv("DOMAIN"),
-				})
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterData, "")
