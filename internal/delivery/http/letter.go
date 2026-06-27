@@ -942,43 +942,41 @@ func Letter(r *gin.Engine) {
 
 			if letter.ViewOnce == "yes" {
 				verify, user := middleware.IsLogin(ctx)
-				if !(user.Role == "owner" || user.Role == "admin") {
-					shouldBurn := !verify || letter.UserID != user.UserID
+				shouldBurn := !verify || (letter.UserID != user.UserID && user.Role != "admin" && user.Role != "owner")
 
-					if shouldBurn {
-						if letter.Timeout != nil {
-							now := utils.NowTz()
-							if letter.OpenedAt == nil {
-								result := config.DB.Table("letters").
-									Where("letter_id = ? AND opened_at IS NULL", input.ID).
-									Update("opened_at", now)
+				if shouldBurn {
+					if letter.Timeout != nil {
+						now := utils.NowTz()
+						if letter.OpenedAt == nil {
+							result := config.DB.Table("letters").
+								Where("letter_id = ? AND opened_at IS NULL", input.ID).
+								Update("opened_at", now)
 
-								if result.RowsAffected > 0 {
-									letter.OpenedAt = &now
-								} else {
-									config.DB.Table("letters").
-										Select("opened_at").
-										Where("letter_id = ?", input.ID).
-										First(&letter)
-								}
-							}
-
-							expiredAt := letter.OpenedAt.Add(time.Duration(*letter.Timeout) * time.Second)
-							if now.After(expiredAt) {
+							if result.RowsAffected > 0 {
+								letter.OpenedAt = &now
+							} else {
 								config.DB.Table("letters").
+									Select("opened_at").
 									Where("letter_id = ?", input.ID).
-									Update("is_burned", "yes")
+									First(&letter)
 							}
+						}
 
-						} else {
-							if err := config.DB.Table("letters").
+						expiredAt := letter.OpenedAt.Add(time.Duration(*letter.Timeout) * time.Second)
+						if now.After(expiredAt) {
+							config.DB.Table("letters").
 								Where("letter_id = ?", input.ID).
-								Update("is_burned", "yes").Error; err != nil {
+								Update("is_burned", "yes")
+						}
 
-								utils.GetErrorJson("BAD_REQUEST", &errJson)
-								utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-								return
-							}
+					} else {
+						if err := config.DB.Table("letters").
+							Where("letter_id = ?", input.ID).
+							Update("is_burned", "yes").Error; err != nil {
+
+							utils.GetErrorJson("BAD_REQUEST", &errJson)
+							utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+							return
 						}
 					}
 				}
