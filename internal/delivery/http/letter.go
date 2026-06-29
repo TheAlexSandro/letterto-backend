@@ -64,8 +64,8 @@ type LetterInfoResp struct {
 	Video         *string `json:"video"`
 	Sender        *string `json:"sender"`
 	RecipientName *string `json:"recipient_name"`
-	Warn          *string `json:"warn"`
-	Viewer        *int    `json:"viewer"`
+	Warn          string  `json:"warn"`
+	AudioAutoplay bool    `json:"audio_autoplay"`
 }
 
 type LetterResponsePre struct {
@@ -200,12 +200,13 @@ func Letter(r *gin.Engine) {
 				letterData.RecipientName = nil
 			}
 
-			if letterInfo.Warn == "-" {
-				letterData.Warn = nil
+			if letterInfo.AudioAutoplay == "yes" {
+				letterData.AudioAutoplay = true
 			} else {
-				letterData.Warn = &letterInfo.Warn
+				letterData.AudioAutoplay = false
 			}
 
+			letterData.Warn = letterInfo.Warn
 			if !isOwner && !isPrivileged {
 				getCookie, _ := ctx.Cookie(letterInfo.LetterID + "-view__")
 				if getCookie == "" {
@@ -334,8 +335,9 @@ func Letter(r *gin.Engine) {
 			artist := ctx.PostForm("artist")
 			viewOnce := ctx.PostForm("view_once")
 			timeout := ctx.PostForm("timeout")
+			audioAutoplay := ctx.PostForm("audio_autoplay")
 
-			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" {
+			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "letter_id, recipient_name, message, music, music_profile, music_title, privacy, font, show_sender, show_recipient, arist", 1), nil, errJson.Code)
 				return
@@ -357,7 +359,7 @@ func Letter(r *gin.Engine) {
 
 			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
 				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
-				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) {
+				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) {
 				return
 			}
 
@@ -470,6 +472,7 @@ func Letter(r *gin.Engine) {
 				Timeout:       timeoutPtr,
 				Warn:          "-",
 				Viewer:        0,
+				AudioAutoplay: audioAutoplay,
 			}
 
 			if imageUrl != "" {
@@ -601,6 +604,7 @@ func Letter(r *gin.Engine) {
 
 			is_burned := ctx.PostForm("is_burned")
 			timeout := ctx.PostForm("timeout")
+			audioAutoplay := ctx.PostForm("audio_autoplay")
 
 			delImg := ctx.PostForm("image")
 			delVid := ctx.PostForm("video")
@@ -662,7 +666,7 @@ func Letter(r *gin.Engine) {
 
 			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
 				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
-				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) {
+				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) {
 				return
 			}
 
@@ -774,6 +778,7 @@ func Letter(r *gin.Engine) {
 				"timeout":        tms,
 				"warn":           existing.Warn,
 				"viewer":         existing.Viewer,
+				"audio_autoplay": audioAutoplay,
 			}
 
 			if password != "" && password != "-" {

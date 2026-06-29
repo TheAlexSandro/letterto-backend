@@ -43,6 +43,7 @@ type Letter struct {
 	OpenedAt      *time.Time `gorm:"type:timestamptz" json:"opened_at"`
 	Warn          string     `gorm:"type:text" json:"warn"`
 	Viewer        int        `gorm:"type:integer;default:0" json:"viewer"`
+	AudioAutoplay string     `gorm:"type:text;default:yes" json:"audio_autoplay"`
 }
 
 type LetterSession struct {
