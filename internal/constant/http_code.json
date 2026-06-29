@@ -128,5 +128,10 @@
         "http": 403,
         "code": "RESTRICTED_MODIFICATION",
         "message": "This letter is restricted from these changes."
+    },
+    "MESSAGE_EMPTY": {
+        "http": 404,
+        "code": "MESSAGE_EMPTY",
+        "message": "Message can't be empty."
     }
 }

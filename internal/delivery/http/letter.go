@@ -341,6 +341,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if utils.IsMessageEmpty(message, 1) {
+				utils.GetErrorJson("MESSAGE_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			var t string
 			getDb := config.DB.Table("letters").Select("letter_id").Where("LOWER(letter_id) = ?", strings.ToLower(letterId)).Limit(1).Scan(&t)
 			if getDb.RowsAffected > 0 {
@@ -622,6 +628,12 @@ func Letter(r *gin.Engine) {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				msg := strings.Replace(errJson.Message, "{param}", "letter_id, recipient_name, message, music, artist", 1)
 				utils.JSON(ctx, errJson.Http, false, msg, nil, errJson.Code)
+				return
+			}
+
+			if message != "" && utils.IsMessageEmpty(message, 1) {
+				utils.GetErrorJson("MESSAGE_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
 
@@ -1032,7 +1044,10 @@ func Letter(r *gin.Engine) {
 
 			config.DB.Table("letters").
 				Select("letter_id", "music_profile", "music_title", "created_at", "recipient_name", "show_recipient", "privacy", "user_id", "message", "font", "password", "artist", "is_burned").
-				Where("privacy = ? AND password = ? AND is_burned = ? AND LENGTH(message) > ? AND warn = ?", "public", "-", "no", 70, "-").
+				Where(
+					"privacy = ? AND password = ? AND is_burned = ? AND warn = ? AND LENGTH(TRIM(REPLACE(regexp_replace(message, '<[^>]*>', '', 'g'), '&nbsp;', ''))) > ?",
+					"public", "-", "no", "-", 60,
+				).
 				Order("RANDOM()").
 				Limit(10).
 				Find(&letters)
