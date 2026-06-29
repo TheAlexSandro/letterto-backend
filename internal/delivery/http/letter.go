@@ -64,7 +64,7 @@ type LetterInfoResp struct {
 	Video         *string `json:"video"`
 	Sender        *string `json:"sender"`
 	RecipientName *string `json:"recipient_name"`
-	Warn          string  `json:"warn"`
+	Warn          *string `json:"warn"`
 	AudioAutoplay bool    `json:"audio_autoplay"`
 }
 
@@ -206,7 +206,12 @@ func Letter(r *gin.Engine) {
 				letterData.AudioAutoplay = false
 			}
 
-			letterData.Warn = letterInfo.Warn
+			if letterInfo.Warn == "-" {
+				letterData.Warn = nil
+			} else {
+				letterData.Warn = &letterInfo.Warn
+			}
+
 			if !isOwner && !isPrivileged {
 				getCookie, _ := ctx.Cookie(letterInfo.LetterID + "-view__")
 				if getCookie == "" {
