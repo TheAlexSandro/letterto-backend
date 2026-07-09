@@ -220,11 +220,18 @@ func Letter(r *gin.Engine) {
 			}
 
 			if !isOwner && !isPrivileged {
+				if letterInfo.ViewOnce == "yes" {
+					if err := config.DB.Table("letters").
+						Where("LOWER(letter_id) = ?", strings.ToLower(letter.ID)).
+						Update("is_burned", "yes").Error; err != nil {
+					}
+				}
+
 				getCookie, _ := ctx.Cookie(letterInfo.LetterID + "-view__")
 				if getCookie == "" {
 					newView := letterInfo.Viewer + 1
 					config.DB.Table("letters").
-						Where("letter_id = ?", letterInfo.LetterID).
+						Where("LOWER(letter_id) = ?", strings.ToLower(letter.ID)).
 						Update("viewer", newView)
 
 					token := utils.GenerateID(50)
@@ -968,80 +975,6 @@ func Letter(r *gin.Engine) {
 				"offset":  offset,
 				"letters": result,
 			}, "")
-		})
-
-		Letter.POST("/burn", func(ctx *gin.Context) {
-			var errJson models.ErrorDetail
-			var letter models.Letter
-			var input LetterInfo
-
-			isMaintenance := os.Getenv("MAINTENANCE")
-			if isMaintenance == "true" {
-				utils.GetErrorJson("MAINTENANCE", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
-			if err := ctx.ShouldBind(&input); err != nil {
-				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
-				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "id", 1), nil, errJson.Code)
-				return
-			}
-
-			getDb := config.DB.Table("letters").
-				Select("user_id", "view_once", "timeout", "opened_at").
-				Where("letter_id = ?", input.ID).
-				First(&letter)
-
-			if getDb.RowsAffected < 1 {
-				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
-				return
-			}
-
-			if letter.ViewOnce == "yes" {
-				verify, user := middleware.IsLogin(ctx)
-				shouldBurn := !verify || (letter.UserID != user.UserID && user.Role != "admin" && user.Role != "owner")
-
-				if shouldBurn {
-					if letter.Timeout != nil {
-						now := utils.NowTz()
-						if letter.OpenedAt == nil {
-							result := config.DB.Table("letters").
-								Where("letter_id = ? AND opened_at IS NULL", input.ID).
-								Update("opened_at", now)
-
-							if result.RowsAffected > 0 {
-								letter.OpenedAt = &now
-							} else {
-								config.DB.Table("letters").
-									Select("opened_at").
-									Where("letter_id = ?", input.ID).
-									First(&letter)
-							}
-						}
-
-						expiredAt := letter.OpenedAt.Add(time.Duration(*letter.Timeout) * time.Second)
-						if now.After(expiredAt) {
-							config.DB.Table("letters").
-								Where("letter_id = ?", input.ID).
-								Update("is_burned", "yes")
-						}
-
-					} else {
-						if err := config.DB.Table("letters").
-							Where("letter_id = ?", input.ID).
-							Update("is_burned", "yes").Error; err != nil {
-
-							utils.GetErrorJson("BAD_REQUEST", &errJson)
-							utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-							return
-						}
-					}
-				}
-			}
-
-			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
 		Letter.GET("/timeLeft", func(ctx *gin.Context) {
