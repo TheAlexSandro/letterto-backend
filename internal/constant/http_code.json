@@ -133,5 +133,10 @@
         "http": 404,
         "code": "MESSAGE_EMPTY",
         "message": "Message can't be empty."
+    },
+    "MAINTENANCE": {
+        "http": 403,
+        "code": "MAINTENANCE",
+        "message": "Maintenance in progress."
     }
 }

@@ -6,6 +6,7 @@ import (
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -45,6 +46,13 @@ func User(r *gin.Engine) {
 		User.POST("/edit", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var value UserResponse
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
 
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
@@ -143,6 +151,13 @@ func User(r *gin.Engine) {
 
 		User.POST("/logout", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
 
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
@@ -288,6 +303,13 @@ func User(r *gin.Engine) {
 			var value ChangeRole
 			var users models.User
 
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			verify, user := middleware.IsLogin(ctx)
 			if !verify || !(user.Role == "owner" || user.Role == "admin") {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
@@ -339,6 +361,13 @@ func User(r *gin.Engine) {
 			var errJson models.ErrorDetail
 			var value ChangePass
 			var users models.User
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
 
 			verify, user := middleware.IsLogin(ctx)
 			if !verify || !(user.Role == "owner" || user.Role == "admin") {

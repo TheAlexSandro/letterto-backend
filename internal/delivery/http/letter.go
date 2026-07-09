@@ -99,6 +99,13 @@ func Letter(r *gin.Engine) {
 			var errJson models.ErrorDetail
 			var letterInfo models.Letter
 
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			if err := ctx.ShouldBind(&letter); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "id", 1), nil, errJson.Code)
@@ -313,6 +320,14 @@ func Letter(r *gin.Engine) {
 
 		Letter.POST("/new", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
@@ -578,6 +593,14 @@ func Letter(r *gin.Engine) {
 
 		Letter.POST("/edit", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
@@ -813,6 +836,13 @@ func Letter(r *gin.Engine) {
 			var input LetterInfo
 			var letter models.Letter
 
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
@@ -944,6 +974,13 @@ func Letter(r *gin.Engine) {
 			var errJson models.ErrorDetail
 			var letter models.Letter
 			var input LetterInfo
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
 
 			if err := ctx.ShouldBind(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
@@ -1094,6 +1131,13 @@ func Letter(r *gin.Engine) {
 		Letter.POST("/action", func(ctx *gin.Context) {
 			var input LetterAction
 			var errJson models.ErrorDetail
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
 
 			verify, user := middleware.IsLogin(ctx)
 			if !verify || !(user.Role == "owner" || user.Role == "admin") {

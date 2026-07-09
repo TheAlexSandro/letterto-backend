@@ -30,6 +30,13 @@ func Auth(r *gin.Engine) {
 			var value SignUp
 			var errJson models.ErrorDetail
 
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			if err := ctx.ShouldBindJSON(&value); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "name, username, password", 1), nil, "")
