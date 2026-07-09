@@ -28,7 +28,6 @@ func ConnectDatabase() {
 	sqlDB.SetMaxOpenConns(10)
 	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
-	database.Exec("SET TIME ZONE 'Asia/Jakarta'")
 
 	tabel := database.AutoMigrate(&models.User{}, &models.Session{}, &models.Letter{}, &models.LetterSession{})
 	if tabel != nil {
@@ -36,7 +35,7 @@ func ConnectDatabase() {
 	}
 
 	var tz string
-	database.Raw("SHOW timezone").Scan(&tz)
+	database.Raw("SHOW timezone;").Scan(&tz)
 	log.Println("DB timezone:", tz)
 
 	DB = database
