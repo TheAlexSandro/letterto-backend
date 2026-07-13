@@ -3,3 +3,4 @@
 !.env.example
 !.env.test
 pkg/utils/pass_test.go
+pkg/utils/sanitize.go

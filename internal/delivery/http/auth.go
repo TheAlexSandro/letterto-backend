@@ -23,9 +23,48 @@ type SignIn struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type VerifyUsername struct {
+	Username string `json:"username" binding:"required"`
+	Method   string `json:"method" binding:"required"`
+}
+
 func Auth(r *gin.Engine) {
 	Auth := r.Group("/auth")
 	{
+		Auth.POST("/verifyUsername", func(ctx *gin.Context) {
+			var value VerifyUsername
+			var errJson models.ErrorDetail
+			var user models.User
+
+			if err := ctx.ShouldBindJSON(&value); err != nil {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "username, method", 1), nil, errJson.Code)
+				return
+			}
+
+			if !utils.ValidateLength(ctx, value.Username, "Username") || !utils.RegexFormat(value.Username, ctx, "Username") {
+				return
+			}
+
+			getUser := config.DB.Table("users").Select("user_id").
+				Where("LOWER(username) = ?", strings.ToLower(value.Username)).
+				First(&user)
+
+			if getUser.RowsAffected < 1 && value.Method == "signin" {
+				utils.GetErrorJson("USER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if getUser.RowsAffected > 0 && value.Method == "signup" {
+				utils.GetErrorJson("USER_ALREADY_EXIST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
+		})
+
 		Auth.POST("/signUp", func(ctx *gin.Context) {
 			var value SignUp
 			var errJson models.ErrorDetail
