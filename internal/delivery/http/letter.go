@@ -146,6 +146,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if !isOwner && !isPrivileged && (letterInfo.Warn == "1" || letterInfo.Warn == "2") {
+				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			if !isOwner && !isPrivileged && letterInfo.IsBurned == "yes" {
 				utils.GetErrorJson("BURNED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -213,10 +219,12 @@ func Letter(r *gin.Engine) {
 				letterData.AudioAutoplay = false
 			}
 
-			if letterInfo.Warn == "-" {
-				letterData.Warn = nil
-			} else {
-				letterData.Warn = &letterInfo.Warn
+			if isPrivileged || isOwner {
+				if letterInfo.Warn == "-" {
+					letterData.Warn = nil
+				} else {
+					letterData.Warn = &letterInfo.Warn
+				}
 			}
 
 			if !isOwner && !isPrivileged {
