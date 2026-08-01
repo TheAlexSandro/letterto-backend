@@ -108,7 +108,6 @@ func Auth(r *gin.Engine) {
 				return
 			}
 			userId := utils.GenerateID(10)
-			refreshToken := utils.GenerateID(50)
 
 			newUser := models.User{
 				UserID:   userId,
@@ -118,17 +117,36 @@ func Auth(r *gin.Engine) {
 				Profile:  "-",
 			}
 
+			if err := config.DB.Table("users").Create(&newUser).Error; err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, "Error creating new user...", nil, errJson.Code)
+				return
+			}
+
+			loginIdSigned, cookieErr := utils.EncodeCookie(os.Getenv("KEY_LAST_LOGIN"), userId)
+			if cookieErr != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+			lastLogTimeout, _ := strconv.Atoi(os.Getenv("LAST_LOGIN_TIMEOUT"))
+			http.SetCookie(ctx.Writer, &http.Cookie{
+				Name:     os.Getenv("KEY_LAST_LOGIN"),
+				Value:    loginIdSigned,
+				Path:     "/",
+				MaxAge:   lastLogTimeout,
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: utils.SetCookieSameSite(),
+				Domain:   os.Getenv("DOMAIN"),
+			})
+
+			refreshToken := utils.GenerateID(50)
 			newSession := models.Session{
 				RefreshToken: refreshToken,
 				UserID:       userId,
 				ExpiresAt:    utils.NowTz().Add(utils.GetExpiry()),
 				LoginAt:      utils.NowTz(),
-			}
-
-			if err := config.DB.Table("users").Create(&newUser).Error; err != nil {
-				utils.GetErrorJson("BAD_REQUEST", &errJson)
-				utils.JSON(ctx, errJson.Http, false, "Error creating new user...", nil, errJson.Code)
-				return
 			}
 
 			if err := config.DB.Table("sessions").Create(&newSession).Error; err != nil {
@@ -187,6 +205,13 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
+			loginIdSigned, cookieErr := utils.EncodeCookie(os.Getenv("KEY_LAST_LOGIN"), user.UserID)
+			if cookieErr != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			refreshToken := utils.GenerateID(50)
 			newSession := models.Session{
 				RefreshToken: refreshToken,
@@ -219,8 +244,45 @@ func Auth(r *gin.Engine) {
 				SameSite: utils.SetCookieSameSite(),
 				Domain:   os.Getenv("DOMAIN"),
 			})
+			lastLogTimeout, _ := strconv.Atoi(os.Getenv("LAST_LOGIN_TIMEOUT"))
+			http.SetCookie(ctx.Writer, &http.Cookie{
+				Name:     os.Getenv("KEY_LAST_LOGIN"),
+				Value:    loginIdSigned,
+				Path:     "/",
+				MaxAge:   lastLogTimeout,
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: utils.SetCookieSameSite(),
+				Domain:   os.Getenv("DOMAIN"),
+			})
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
+		})
+
+		Auth.GET("/getLastLogin", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+			getCookie, err := ctx.Cookie(os.Getenv("KEY_LAST_LOGIN"))
+			if getCookie == "" || err != nil {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			decodeCookie, deErr := utils.DecodeCookie(os.Getenv("KEY_LAST_LOGIN"), getCookie)
+			if deErr != nil {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			var user models.User
+			if err := config.DB.Table("users").Where("LOWER(user_id) = ?", strings.ToLower(decodeCookie)).First(&user).Error; err != nil {
+				utils.GetErrorJson("USER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"name": user.Name, "username": user.Username}, "")
 		})
 	}
 }
