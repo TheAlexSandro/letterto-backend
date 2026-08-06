@@ -66,6 +66,7 @@ type LetterInfoResp struct {
 	RecipientName *string `json:"recipient_name"`
 	Warn          *string `json:"warn"`
 	AudioAutoplay bool    `json:"audio_autoplay"`
+	ShowAction    *bool   `json:"show_action"`
 }
 
 type LetterResponsePre struct {
@@ -180,6 +181,11 @@ func Letter(r *gin.Engine) {
 				MusicTitle:   letterInfo.MusicTitle,
 				Artist:       letterInfo.Artist,
 				Music:        letterInfo.Music,
+			}
+
+			if isOwner {
+				showAction := true
+				letterData.ShowAction = &showAction
 			}
 
 			if letterInfo.Video != "-" {
