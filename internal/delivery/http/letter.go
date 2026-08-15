@@ -377,6 +377,20 @@ func Letter(r *gin.Engine) {
 			viewOnce := ctx.PostForm("view_once")
 			timeout := ctx.PostForm("timeout")
 			audioAutoplay := ctx.PostForm("audio_autoplay")
+			cfTurnstile := ctx.PostForm("cf_turnstile")
+
+			cfValid, cfErr := utils.VerifyTurnstile(cfTurnstile, ctx.ClientIP())
+			if !cfValid || cfErr != nil {
+				var c string
+				if !cfValid {
+					c = "CAPTCHA_VERIFICATION_ERR"
+				} else {
+					c = "CAPTCHA_VERIFICATION_FAILED"
+				}
+				utils.GetErrorJson(c, &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
 
 			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
@@ -657,6 +671,20 @@ func Letter(r *gin.Engine) {
 
 			delImg := ctx.PostForm("image")
 			delVid := ctx.PostForm("video")
+			cfTurnstile := ctx.PostForm("cf_turnstile")
+
+			cfValid, cfErr := utils.VerifyTurnstile(cfTurnstile, ctx.ClientIP())
+			if !cfValid || cfErr != nil {
+				var c string
+				if !cfValid {
+					c = "CAPTCHA_VERIFICATION_ERR"
+				} else {
+					c = "CAPTCHA_VERIFICATION_FAILED"
+				}
+				utils.GetErrorJson(c, &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
 
 			var existing models.Letter
 			if err := config.DB.Table("letters").Where("letter_id = ? AND user_id = ?", letterId, user.UserID).First(&existing).Error; err != nil {

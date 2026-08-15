@@ -138,5 +138,15 @@
         "http": 403,
         "code": "MAINTENANCE",
         "message": "Maintenance in progress."
+    },
+    "CAPTCHA_VERIFICATION_ERR": {
+        "http": 400,
+        "code": "CAPTCHA_VERIFICATION_ERR",
+        "message": "There's an error while verifying the captcha, please try again."
+    },
+    "CAPTCHA_VERIFICATION_FAILED": {
+        "http": 400,
+        "code": "CAPTCHA_VERIFICATION_FAILED",
+        "message": "Invalid captcha."
     }
 }
