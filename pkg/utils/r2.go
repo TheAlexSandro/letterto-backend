@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"LetterToBackend/models"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -11,6 +12,7 @@ import (
 	"mime/multipart"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/gin-gonic/gin"
 )
 
 var R2Client *s3.Client
@@ -86,6 +89,35 @@ func UploadToR2(file *multipart.FileHeader) (string, error) {
 	}
 
 	return fileName, nil
+}
+
+func GeneratePresignedUploadURL(key string, contentType string) (string, int, error) {
+	expMin, _ := strconv.Atoi(os.Getenv("PRESIGN_UPLOAD_EXP"))
+	if expMin <= 0 {
+		expMin = 10
+	}
+	expiry := time.Duration(expMin) * time.Minute
+
+	presignClient := s3.NewPresignClient(R2Client)
+
+	req, err := presignClient.PresignPutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket:       aws.String(os.Getenv("R2_BUCKET")),
+		Key:          aws.String(key),
+		ContentType:  aws.String(contentType),
+		CacheControl: aws.String("no-store, no-cache"),
+	}, s3.WithPresignExpires(expiry))
+	if err != nil {
+		return "", 0, err
+	}
+
+	return req.URL, int(expiry.Seconds()), nil
+}
+
+func HeadR2Object(key string) (*s3.HeadObjectOutput, error) {
+	return R2Client.HeadObject(context.TODO(), &s3.HeadObjectInput{
+		Bucket: aws.String(os.Getenv("R2_BUCKET")),
+		Key:    aws.String(key),
+	})
 }
 
 func DeleteFromR2(fileUrl string) error {
@@ -171,4 +203,40 @@ func cleanupURLCache() {
 		}
 		urlCache_.Unlock()
 	}
+}
+
+func VerifyUploadedR2Key(ctx *gin.Context, errJson *models.ErrorDetail, field string, key string) (string, bool) {
+	if key == "" {
+		return "", true
+	}
+
+	head, errHead := HeadR2Object(key)
+	if errHead != nil {
+		GetErrorJson("BAD_REQUEST", errJson)
+		JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", field, 1), nil, errJson.Code)
+		return "", false
+	}
+
+	typePrefix := map[string]string{"image": "image/", "video": "video/"}
+	maxSizeKey := map[string]string{"image": "IMAGE_MAX_SIZE", "video": "VIDEO_MAX_SIZE"}
+
+	contentType := ""
+	if head.ContentType != nil {
+		contentType = *head.ContentType
+	}
+	if !strings.HasPrefix(contentType, typePrefix[field]) {
+		DeleteFromR2(key)
+		GetErrorJson("INVALID_FILETYPE", errJson)
+		JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+		return "", false
+	}
+
+	maxSize, _ := strconv.Atoi(os.Getenv(maxSizeKey[field]))
+	if head.ContentLength != nil && *head.ContentLength > int64(maxSize) {
+		DeleteFromR2(key)
+		InvFileSizeRes(ctx, field, int64(maxSize))
+		return "", false
+	}
+
+	return key, true
 }

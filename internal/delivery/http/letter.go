@@ -21,6 +21,15 @@ type LetterInfo struct {
 	Edit string `form:"edit"`
 }
 
+type PresignUploadRequest struct {
+	Field       string `json:"field" binding:"required"`
+	ContentType string `json:"content_type" binding:"required"`
+	Size        int64  `json:"size" binding:"required"`
+	Path        string `json:"path" binding:"required"`
+	LetterId    string `json:"letter_id" binding:"required"`
+	NewLetterId string `json:"new_letter_id"`
+}
+
 type VerifyPassword struct {
 	ID       string `json:"id" binding:"required"`
 	Password string `json:"password" binding:"required"`
@@ -339,6 +348,188 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
+		// Deletes an object from R2 that was presigned/uploaded but is now
+		// being abandoned by the client — e.g. its sibling image/video
+		// failed validation, so the whole submission got cancelled and this
+		// one shouldn't be left orphaned in storage. Best-effort: we don't
+		// error out even if the key never actually existed.
+		Letter.POST("/discardUpload", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if user.Role == "banned" {
+				utils.GetErrorJson("BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			key := ctx.PostForm("key")
+			if key != "" {
+				utils.DeleteFromR2(key)
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
+		})
+
+		Letter.POST("/new/prepare", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if user.Role == "banned" {
+				utils.GetErrorJson("BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			letterId := ctx.PostForm("letter_id")
+			recipientName := ctx.PostForm("recipient_name")
+			message := ctx.PostForm("message")
+			music := ctx.PostForm("music")
+			musicProfile := ctx.PostForm("music_profile")
+			musicTitle := ctx.PostForm("music_title")
+			privacy := ctx.PostForm("privacy")
+			password := ctx.PostForm("password")
+			font := ctx.PostForm("font")
+			showSender := ctx.PostForm("show_sender")
+			showRecipient := ctx.PostForm("show_recipient")
+			artist := ctx.PostForm("artist")
+			timeout := ctx.PostForm("timeout")
+			audioAutoplay := ctx.PostForm("audio_autoplay")
+
+			field := ctx.PostForm("field")
+			contentType := ctx.PostForm("content_type")
+			size := ctx.PostForm("size")
+
+			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "letter_id, recipient_name, message, music, music_profile, music_title, privacy, font, show_sender, show_recipient, arist", 1), nil, errJson.Code)
+				return
+			}
+
+			if utils.IsMessageEmpty(message, 1) {
+				utils.GetErrorJson("MESSAGE_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			var t string
+			getDb := config.DB.Table("letters").Select("letter_id").Where("LOWER(letter_id) = ?", strings.ToLower(letterId)).Limit(1).Scan(&t)
+			if getDb.RowsAffected > 0 {
+				utils.GetErrorJson("ID_OCCUPIED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{id}", letterId, 1), nil, errJson.Code)
+				return
+			}
+
+			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
+				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
+				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) {
+				return
+			}
+
+			if !utils.ValidateLength(ctx, letterId, "ID") || (password != "" && !utils.ValidateLength(ctx, password, "Password")) {
+				return
+			}
+
+			if !utils.RegexFormat(letterId, ctx, "ID") {
+				return
+			}
+
+			if password == "" {
+				password = "-"
+			} else {
+				if !utils.RegexFormat(password, ctx, "Password") {
+					return
+				}
+			}
+
+			if timeout != "" {
+				_, errT := utils.ParseMMSS(timeout)
+				if !errT {
+					utils.GetErrorJson("INVALID_TIMEOUT_FORMAT", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+					return
+				}
+			}
+
+			allowedTypes := map[string][]string{
+				"image": {"image/jpeg", "image/png", "image/webp", "image/gif"},
+				"video": {"video/mp4", "video/webm", "video/quicktime"},
+			}
+
+			types, ok := allowedTypes[field]
+			if !ok {
+				utils.GetErrorJson("INVALID_FILETYPE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+				return
+			}
+
+			validType := false
+			for _, t := range types {
+				if t == contentType {
+					validType = true
+					break
+				}
+			}
+			if !validType {
+				utils.GetErrorJson("INVALID_FILETYPE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+				return
+			}
+
+			sizes, _ := strconv.ParseInt(size, 10, 64)
+			maxSizeKey := "IMAGE_MAX_SIZE"
+			if field == "video" {
+				maxSizeKey = "VIDEO_MAX_SIZE"
+			}
+			maxSize, _ := strconv.Atoi(os.Getenv(maxSizeKey))
+			if sizes <= 0 || sizes > int64(maxSize) {
+				utils.InvFileSizeRes(ctx, field, int64(maxSize))
+				return
+			}
+
+			key := utils.GenerateID(30)
+
+			uploadUrl, expiresIn, err := utils.GeneratePresignedUploadURL(key, contentType)
+			if err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, "Failed to generate upload URL", nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{
+				"key":          key,
+				"upload_url":   uploadUrl,
+				"expires_in":   expiresIn,
+				"content_type": contentType,
+			}, "")
+		})
+
 		Letter.POST("/new", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
@@ -426,66 +617,16 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			form, _ := ctx.MultipartForm()
+			imageKey := ctx.PostForm("image_key")
+			videoKey := ctx.PostForm("video_key")
 
-			var imageUrl string
-			var videoUrl string
-
-			allowed := map[string]string{
-				"image": "image",
-				"video": "video",
+			imageUrl, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "image", imageKey)
+			if !ok {
+				return
 			}
-			for fieldName := range form.File {
-				if _, ok := allowed[fieldName]; !ok {
-					utils.GetErrorJson("INVALID_FILETYPE", &errJson)
-					utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
-					return
-				}
-			}
-
-			for fieldName, files := range form.File {
-				if len(files) > 1 {
-					utils.GetErrorJson("TOO_MANY_FILES", &errJson)
-					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-					return
-				}
-
-				file := files[0]
-				switch fieldName {
-				case "image":
-					size, _ := strconv.Atoi(os.Getenv("IMAGE_MAX_SIZE"))
-					if file.Size > int64(size) {
-						utils.InvFileSizeRes(ctx, "image", int64(size))
-						return
-					}
-				case "video":
-					size, _ := strconv.Atoi(os.Getenv("VIDEO_MAX_SIZE"))
-					if file.Size > int64(size) {
-						utils.InvFileSizeRes(ctx, "video", int64(size))
-						return
-					}
-				}
-
-				fileType, errType := utils.GetFileType(file)
-				if errType != nil || fileType != allowed[fieldName] {
-					utils.GetErrorJson("INVALID_FILETYPE", &errJson)
-					utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
-					return
-				}
-
-				url, errUpload := utils.UploadToR2(file)
-				if errUpload != nil {
-					utils.GetErrorJson("BAD_REQUEST", &errJson)
-					utils.JSON(ctx, errJson.Http, false, "File upload failed", nil, errJson.Code)
-					return
-				}
-
-				switch fieldName {
-				case "image":
-					imageUrl = url
-				case "video":
-					videoUrl = url
-				}
+			videoUrl, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "video", videoKey)
+			if !ok {
+				return
 			}
 
 			if password == "" {
@@ -626,6 +767,185 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterList, "")
 		})
 
+		Letter.POST("/edit/prepare", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+
+			isMaintenance := os.Getenv("MAINTENANCE")
+			if isMaintenance == "true" {
+				utils.GetErrorJson("MAINTENANCE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if user.Role == "banned" {
+				utils.GetErrorJson("BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			letterId := ctx.PostForm("letter_id")
+			recipientName := ctx.PostForm("recipient_name")
+			message := ctx.PostForm("message")
+			music := ctx.PostForm("music")
+			musicProfile := ctx.PostForm("music_profile")
+			musicTitle := ctx.PostForm("music_title")
+			artist := ctx.PostForm("artist")
+			privacy := ctx.PostForm("privacy")
+			password := ctx.PostForm("password")
+			font := ctx.PostForm("font")
+			showSender := ctx.PostForm("show_sender")
+			showRecipient := ctx.PostForm("show_recipient")
+			new_letterId := ctx.PostForm("new_letterid")
+			view_once := ctx.PostForm("view_once")
+			is_burned := ctx.PostForm("is_burned")
+			timeout := ctx.PostForm("timeout")
+			audioAutoplay := ctx.PostForm("audio_autoplay")
+
+			field := ctx.PostForm("field")
+			contentType := ctx.PostForm("content_type")
+			size := ctx.PostForm("size")
+
+			var existing models.Letter
+			if err := config.DB.Table("letters").Where("LOWER(letter_id) = ? AND user_id = ?", strings.ToLower(letterId), user.UserID).First(&existing).Error; err != nil {
+				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if existing.Warn == "2" {
+				utils.GetErrorJson("LETTER_BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if existing.Warn == "1" && (existing.Privacy != privacy || existing.Password != password || existing.Font != font || existing.ShowSender != showSender || existing.ShowRecipient != showRecipient || existing.LetterID != new_letterId || existing.ViewOnce != view_once) {
+				utils.GetErrorJson("RESTRICTED_MODIFICATION", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "letter_id, recipient_name, message, music, music_profile, music_title, privacy, font, show_sender, show_recipient, arist", 1), nil, errJson.Code)
+				return
+			}
+
+			if message != "" && utils.IsMessageEmpty(message, 1) {
+				utils.GetErrorJson("MESSAGE_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if !strings.EqualFold(letterId, new_letterId) {
+				var checkId string
+				config.DB.Table("letters").Select("letter_id").Where("LOWER(letter_id) = ?", strings.ToLower(new_letterId)).Limit(1).Scan(&checkId)
+				if checkId != "" {
+					utils.GetErrorJson("ID_OCCUPIED", &errJson)
+					msg := strings.Replace(errJson.Message, "{id}", new_letterId, 1)
+					utils.JSON(ctx, errJson.Http, false, msg, nil, errJson.Code)
+					return
+				}
+
+				if !utils.ValidateLength(ctx, new_letterId, "ID") {
+					return
+				}
+			}
+
+			if new_letterId == "" {
+				new_letterId = existing.LetterID
+			}
+
+			if is_burned == "" {
+				is_burned = existing.IsBurned
+			}
+
+			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
+				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
+				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) {
+				return
+			}
+
+			if !utils.RegexFormat(new_letterId, ctx, "ID") {
+				return
+			}
+
+			if timeout != "" {
+				_, errT := utils.ParseMMSS(timeout)
+				if !errT {
+					utils.GetErrorJson("INVALID_TIMEOUT_FORMAT", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+					return
+				}
+			}
+
+			if password != "" && password != "-" {
+				if utils.ValidateLength(ctx, password, "Password") {
+					if !utils.RegexFormat(password, ctx, "Password") {
+						return
+					}
+				}
+			}
+
+			allowedTypes := map[string][]string{
+				"image": {"image/jpeg", "image/png", "image/webp", "image/gif"},
+				"video": {"video/mp4", "video/webm", "video/quicktime"},
+			}
+
+			types, ok := allowedTypes[field]
+			if !ok {
+				utils.GetErrorJson("INVALID_FILETYPE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+				return
+			}
+
+			validType := false
+			for _, t := range types {
+				if t == contentType {
+					validType = true
+					break
+				}
+			}
+			if !validType {
+				utils.GetErrorJson("INVALID_FILETYPE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+				return
+			}
+
+			sizes, _ := strconv.ParseInt(size, 10, 64)
+			maxSizeKey := "IMAGE_MAX_SIZE"
+			if field == "video" {
+				maxSizeKey = "VIDEO_MAX_SIZE"
+			}
+			maxSize, _ := strconv.Atoi(os.Getenv(maxSizeKey))
+			if sizes <= 0 || sizes > int64(maxSize) {
+				utils.InvFileSizeRes(ctx, field, int64(maxSize))
+				return
+			}
+
+			key := utils.GenerateID(30)
+
+			uploadUrl, expiresIn, err := utils.GeneratePresignedUploadURL(key, contentType)
+			if err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, "Failed to generate upload URL", nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{
+				"key":          key,
+				"upload_url":   uploadUrl,
+				"expires_in":   expiresIn,
+				"content_type": contentType,
+			}, "")
+		})
+
 		Letter.POST("/edit", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
@@ -669,8 +989,8 @@ func Letter(r *gin.Engine) {
 			timeout := ctx.PostForm("timeout")
 			audioAutoplay := ctx.PostForm("audio_autoplay")
 
-			delImg := ctx.PostForm("image")
-			delVid := ctx.PostForm("video")
+			imageKey := ctx.PostForm("image_key")
+			videoKey := ctx.PostForm("video_key")
 			cfTurnstile := ctx.PostForm("cf_turnstile")
 
 			cfValid, cfErr := utils.VerifyTurnstile(cfTurnstile, ctx.ClientIP())
@@ -687,7 +1007,7 @@ func Letter(r *gin.Engine) {
 			}
 
 			var existing models.Letter
-			if err := config.DB.Table("letters").Where("letter_id = ? AND user_id = ?", letterId, user.UserID).First(&existing).Error; err != nil {
+			if err := config.DB.Table("letters").Where("LOWER(letter_id) = ? AND user_id = ?", strings.ToLower(letterId), user.UserID).First(&existing).Error; err != nil {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
@@ -718,7 +1038,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			if letterId != new_letterId {
+			if !strings.EqualFold(letterId, new_letterId) {
 				var checkId string
 				config.DB.Table("letters").Select("letter_id").Where("LOWER(letter_id) = ?", strings.ToLower(new_letterId)).Limit(1).Scan(&checkId)
 				if checkId != "" {
@@ -754,72 +1074,39 @@ func Letter(r *gin.Engine) {
 			imageUrl := existing.Image
 			videoUrl := existing.Video
 
-			if delImg == "-" && imageUrl != "-" && imageUrl != "" {
-				utils.DeleteFromR2(imageUrl)
+			if imageKey == "-" {
+				if imageUrl != "-" && imageUrl != "" {
+					utils.DeleteFromR2(imageUrl)
+				}
 				imageUrl = "-"
+			} else {
+				newImageKey, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "image", imageKey)
+				if !ok {
+					return
+				}
+				if newImageKey != "" {
+					if imageUrl != "-" && imageUrl != "" {
+						utils.DeleteFromR2(imageUrl)
+					}
+					imageUrl = newImageKey
+				}
 			}
-			if delVid == "-" && videoUrl != "-" && videoUrl != "" {
-				utils.DeleteFromR2(videoUrl)
+
+			if videoKey == "-" {
+				if videoUrl != "-" && videoUrl != "" {
+					utils.DeleteFromR2(videoUrl)
+				}
 				videoUrl = "-"
-			}
-
-			form, _ := ctx.MultipartForm()
-			if form != nil && form.File != nil {
-				allowed := map[string]string{"image": "image", "video": "video"}
-
-				for fieldName, files := range form.File {
-					if len(files) == 0 {
-						continue
+			} else {
+				newVideoKey, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "video", videoKey)
+				if !ok {
+					return
+				}
+				if newVideoKey != "" {
+					if videoUrl != "-" && videoUrl != "" {
+						utils.DeleteFromR2(videoUrl)
 					}
-					file := files[0]
-
-					if len(files) > 1 {
-						utils.GetErrorJson("TOO_MANY_FILES", &errJson)
-						utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-						return
-					}
-
-					fileType, errType := utils.GetFileType(file)
-					if errType != nil || fileType != allowed[fieldName] {
-						utils.GetErrorJson("INVALID_FILETYPE", &errJson)
-						msg := strings.Replace(errJson.Message, "{media}", "image, video", 1)
-						utils.JSON(ctx, errJson.Http, false, msg, nil, errJson.Code)
-						return
-					}
-
-					maxSizeKey := "IMAGE_MAX_SIZE"
-					if fieldName == "video" {
-						maxSizeKey = "VIDEO_MAX_SIZE"
-					}
-					size, _ := strconv.Atoi(os.Getenv(maxSizeKey))
-
-					if file.Size > int64(size) {
-						utils.GetErrorJson("FILE_TOO_LARGE", &errJson)
-						msg := strings.Replace(errJson.Message, "{param}", fieldName, 1)
-						msg = strings.Replace(msg, "{size}", strconv.Itoa(size), 1)
-						utils.JSON(ctx, errJson.Http, false, msg, nil, errJson.Code)
-						return
-					}
-
-					newUrl, errUpload := utils.UploadToR2(file)
-					if errUpload != nil {
-						utils.GetErrorJson("BAD_REQUEST", &errJson)
-						utils.JSON(ctx, errJson.Http, false, "File upload failed", nil, errJson.Code)
-						return
-					}
-
-					switch fieldName {
-					case "image":
-						if imageUrl != "-" && imageUrl != "" {
-							utils.DeleteFromR2(imageUrl)
-						}
-						imageUrl = newUrl
-					case "video":
-						if videoUrl != "-" && videoUrl != "" {
-							utils.DeleteFromR2(videoUrl)
-						}
-						videoUrl = newUrl
-					}
+					videoUrl = newVideoKey
 				}
 			}
 
