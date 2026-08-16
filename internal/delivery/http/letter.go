@@ -479,13 +479,13 @@ func Letter(r *gin.Engine) {
 
 			allowedTypes := map[string][]string{
 				"image": {"image/jpeg", "image/png", "image/webp", "image/gif"},
-				"video": {"video/mp4", "video/webm", "video/quicktime"},
+				"video": {"video/mp4", "video/webm", "video/quicktime", "video/x-matroska", "video/matroska"},
 			}
 
 			types, ok := allowedTypes[field]
 			if !ok {
 				utils.GetErrorJson("INVALID_FILETYPE", &errJson)
-				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "jpeg, png, webp, gif and mp4, webm, quicktime, mkv", 1), nil, errJson.Code)
 				return
 			}
 
@@ -498,7 +498,7 @@ func Letter(r *gin.Engine) {
 			}
 			if !validType {
 				utils.GetErrorJson("INVALID_FILETYPE", &errJson)
-				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "jpeg, png, webp, gif and mp4, webm, quicktime, mkv", 1), nil, errJson.Code)
 				return
 			}
 
@@ -895,13 +895,13 @@ func Letter(r *gin.Engine) {
 
 			allowedTypes := map[string][]string{
 				"image": {"image/jpeg", "image/png", "image/webp", "image/gif"},
-				"video": {"video/mp4", "video/webm", "video/quicktime"},
+				"video": {"video/mp4", "video/webm", "video/quicktime", "video/x-matroska", "video/matroska"},
 			}
 
 			types, ok := allowedTypes[field]
 			if !ok {
 				utils.GetErrorJson("INVALID_FILETYPE", &errJson)
-				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "jpeg, png, webp, gif and mp4, webm, quicktime, mkv", 1), nil, errJson.Code)
 				return
 			}
 
@@ -914,7 +914,7 @@ func Letter(r *gin.Engine) {
 			}
 			if !validType {
 				utils.GetErrorJson("INVALID_FILETYPE", &errJson)
-				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "image, video", 1), nil, errJson.Code)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", "jpeg, png, webp, gif and mp4, webm, quicktime, mkv", 1), nil, errJson.Code)
 				return
 			}
 
