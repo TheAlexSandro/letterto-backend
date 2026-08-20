@@ -29,9 +29,9 @@ type VerifyUsername struct {
 }
 
 func Auth(r *gin.Engine) {
-	Auth := r.Group("/auth")
+	auth := r.Group("/auth")
 	{
-		Auth.POST("/verifyUsername", func(ctx *gin.Context) {
+		auth.POST("/verifyUsername", func(ctx *gin.Context) {
 			var value VerifyUsername
 			var errJson models.ErrorDetail
 			var user models.User
@@ -65,7 +65,7 @@ func Auth(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		Auth.POST("/signUp", func(ctx *gin.Context) {
+		auth.POST("/signUp", func(ctx *gin.Context) {
 			var value SignUp
 			var errJson models.ErrorDetail
 
@@ -177,7 +177,7 @@ func Auth(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		Auth.POST("/signIn", func(ctx *gin.Context) {
+		auth.POST("/signIn", func(ctx *gin.Context) {
 			var value SignIn
 			var errJson models.ErrorDetail
 			var user models.User
@@ -259,7 +259,7 @@ func Auth(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		Auth.GET("/getLastLogin", func(ctx *gin.Context) {
+		auth.GET("/getLastLogin", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			getCookie, err := ctx.Cookie(os.Getenv("KEY_LAST_LOGIN"))
 			if getCookie == "" || err != nil {

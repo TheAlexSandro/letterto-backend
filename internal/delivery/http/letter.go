@@ -102,9 +102,9 @@ type LetterAction struct {
 }
 
 func Letter(r *gin.Engine) {
-	Letter := r.Group("letter")
+	letter := r.Group("letter")
 	{
-		Letter.GET("/getInfo", func(ctx *gin.Context) {
+		letter.GET("/getInfo", func(ctx *gin.Context) {
 			var letter LetterInfo
 			var errJson models.ErrorDetail
 			var letterInfo models.Letter
@@ -281,7 +281,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterData, "")
 		})
 
-		Letter.POST("/verifyPassword", func(ctx *gin.Context) {
+		letter.POST("/verifyPassword", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var input VerifyPassword
 			var letterInfo models.Letter
@@ -353,7 +353,7 @@ func Letter(r *gin.Engine) {
 		// failed validation, so the whole submission got cancelled and this
 		// one shouldn't be left orphaned in storage. Best-effort: we don't
 		// error out even if the key never actually existed.
-		Letter.POST("/discardUpload", func(ctx *gin.Context) {
+		letter.POST("/discardUpload", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
 			isMaintenance := os.Getenv("MAINTENANCE")
@@ -384,7 +384,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		Letter.POST("/new/prepare", func(ctx *gin.Context) {
+		letter.POST("/new/prepare", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
 			isMaintenance := os.Getenv("MAINTENANCE")
@@ -530,7 +530,7 @@ func Letter(r *gin.Engine) {
 			}, "")
 		})
 
-		Letter.POST("/new", func(ctx *gin.Context) {
+		letter.POST("/new", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
 			isMaintenance := os.Getenv("MAINTENANCE")
@@ -692,7 +692,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"letter_id": letterId}, "")
 		})
 
-		Letter.GET("/total", func(ctx *gin.Context) {
+		letter.GET("/total", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
@@ -715,7 +715,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"total": c}, "")
 		})
 
-		Letter.GET("/myLetters", func(ctx *gin.Context) {
+		letter.GET("/myLetters", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var letterList []LetterResponse
 			var input MyLetter
@@ -767,7 +767,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", letterList, "")
 		})
 
-		Letter.POST("/edit/prepare", func(ctx *gin.Context) {
+		letter.POST("/edit/prepare", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
 			isMaintenance := os.Getenv("MAINTENANCE")
@@ -946,7 +946,7 @@ func Letter(r *gin.Engine) {
 			}, "")
 		})
 
-		Letter.POST("/edit", func(ctx *gin.Context) {
+		letter.POST("/edit", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
 			isMaintenance := os.Getenv("MAINTENANCE")
@@ -1167,7 +1167,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"letter_id": letterId}, "")
 		})
 
-		Letter.POST("/remove", func(ctx *gin.Context) {
+		letter.POST("/remove", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var input LetterInfo
 			var letter models.Letter
@@ -1221,7 +1221,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		Letter.GET("/search", func(ctx *gin.Context) {
+		letter.GET("/search", func(ctx *gin.Context) {
 			var input LetterSeach
 			var errJson models.ErrorDetail
 			var letters []models.Letter
@@ -1306,7 +1306,7 @@ func Letter(r *gin.Engine) {
 			}, "")
 		})
 
-		Letter.GET("/timeLeft", func(ctx *gin.Context) {
+		letter.GET("/timeLeft", func(ctx *gin.Context) {
 			var input LetterInfo
 			var errJson models.ErrorDetail
 			var letter models.Letter
@@ -1339,7 +1339,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", resp, "")
 		})
 
-		Letter.GET("/letterTotal", func(ctx *gin.Context) {
+		letter.GET("/letterTotal", func(ctx *gin.Context) {
 			var count int64
 
 			config.DB.Table("letters").
@@ -1348,7 +1348,7 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"total": count}, "")
 		})
 
-		Letter.GET("/random", func(ctx *gin.Context) {
+		letter.GET("/random", func(ctx *gin.Context) {
 			var letters []models.Letter
 
 			config.DB.Table("letters").
@@ -1390,7 +1390,7 @@ func Letter(r *gin.Engine) {
 			}, "")
 		})
 
-		Letter.POST("/action", func(ctx *gin.Context) {
+		letter.POST("/action", func(ctx *gin.Context) {
 			var input LetterAction
 			var errJson models.ErrorDetail
 

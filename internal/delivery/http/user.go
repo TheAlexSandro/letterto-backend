@@ -41,9 +41,9 @@ type ChangePass struct {
 }
 
 func User(r *gin.Engine) {
-	User := r.Group("user")
+	user := r.Group("user")
 	{
-		User.POST("/edit", func(ctx *gin.Context) {
+		user.POST("/edit", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var value UserResponse
 
@@ -149,7 +149,7 @@ func User(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		User.POST("/logout", func(ctx *gin.Context) {
+		user.POST("/logout", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
 			isMaintenance := os.Getenv("MAINTENANCE")
@@ -170,7 +170,7 @@ func User(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		User.GET("/accountInfo", func(ctx *gin.Context) {
+		user.GET("/accountInfo", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
 			verify, user := middleware.IsLogin(ctx)
@@ -183,7 +183,7 @@ func User(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"user_id": user.UserID, "name": user.Name, "username": user.Username, "role": user.Role}, "")
 		})
 
-		User.GET("/users", func(ctx *gin.Context) {
+		user.GET("/users", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var value UsersList
 
@@ -235,7 +235,7 @@ func User(r *gin.Engine) {
 			}, "")
 		})
 
-		User.GET("/searchUser", func(ctx *gin.Context) {
+		user.GET("/searchUser", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var value UserSearch
 
@@ -298,7 +298,7 @@ func User(r *gin.Engine) {
 			}, "")
 		})
 
-		User.POST("/changeRole", func(ctx *gin.Context) {
+		user.POST("/changeRole", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var value ChangeRole
 			var users models.User
@@ -357,7 +357,7 @@ func User(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		User.POST("/changePass", func(ctx *gin.Context) {
+		user.POST("/changePass", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 			var value ChangePass
 			var users models.User

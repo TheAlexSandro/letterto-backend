@@ -148,5 +148,9 @@
         "http": 400,
         "code": "CAPTCHA_VERIFICATION_FAILED",
         "message": "Invalid captcha."
+    },
+    "BAD_GATEWAY": {
+        "http": 502,
+        "code": "BAD_GATEWAY"
     }
 }
