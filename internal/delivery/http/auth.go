@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -158,11 +159,8 @@ func Auth(r *gin.Engine) {
 
 			loginId := utils.GenerateID(50)
 			lastLogTimeout, _ := strconv.Atoi(os.Getenv("LAST_LOGIN_TIMEOUT"))
-
-			loginIdSes := models.LoginIdSession{
-				UserId:  userId,
-				LoginId: loginId,
-			}
+			expiresAt := utils.NowTz().Add(time.Duration(lastLogTimeout) * time.Second)
+			oldLoginId, oldErr := ctx.Cookie(os.Getenv("KEY_LAST_LOGIN"))
 
 			http.SetCookie(ctx.Writer, &http.Cookie{
 				Name:     os.Getenv("KEY_LAST_LOGIN"),
@@ -175,21 +173,28 @@ func Auth(r *gin.Engine) {
 				Domain:   os.Getenv("DOMAIN"),
 			})
 
-			var ind string
-			getDb := config.DB.Table("login_id_sessions").Select("login_id").Where("LOWER(user_id) = ?", strings.ToLower(userId)).Limit(1).Scan(&ind)
-			if getDb.RowsAffected < 1 {
-				if err := config.DB.Table("login_id_sessions").Create(&loginIdSes).Error; err != nil {
-					utils.GetErrorJson("BAD_REQUEST", &errJson)
-					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-					return
-				}
-			} else {
-				updateData := map[string]interface{}{
-					"user_id":  userId,
-					"login_id": loginId,
-				}
+			rewritten := false
+			if oldErr == nil && oldLoginId != "" {
+				result := config.DB.Table("login_id_sessions").
+					Where("LOWER(login_id) = ?", strings.ToLower(oldLoginId)).
+					Updates(map[string]interface{}{
+						"user_id":    userId,
+						"login_id":   loginId,
+						"expires_at": expiresAt,
+					})
 
-				if err := config.DB.Table("login_id_sessions").Where("LOWER(user_id) = ?", strings.ToLower(userId)).Updates(updateData).Error; err != nil {
+				if result.Error == nil && result.RowsAffected > 0 {
+					rewritten = true
+				}
+			}
+
+			if !rewritten {
+				loginIdSes := models.LoginIdSession{
+					UserId:    userId,
+					LoginId:   loginId,
+					ExpiresAt: expiresAt,
+				}
+				if err := config.DB.Table("login_id_sessions").Create(&loginIdSes).Error; err != nil {
 					utils.GetErrorJson("BAD_REQUEST", &errJson)
 					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 					return
@@ -262,11 +267,9 @@ func Auth(r *gin.Engine) {
 
 			loginId := utils.GenerateID(50)
 			lastLogTimeout, _ := strconv.Atoi(os.Getenv("LAST_LOGIN_TIMEOUT"))
+			expiresAt := utils.NowTz().Add(time.Duration(lastLogTimeout) * time.Second)
 
-			loginIdSes := models.LoginIdSession{
-				UserId:  user.UserID,
-				LoginId: loginId,
-			}
+			oldLoginId, oldErr := ctx.Cookie(os.Getenv("KEY_LAST_LOGIN"))
 
 			http.SetCookie(ctx.Writer, &http.Cookie{
 				Name:     os.Getenv("KEY_LAST_LOGIN"),
@@ -279,21 +282,28 @@ func Auth(r *gin.Engine) {
 				Domain:   os.Getenv("DOMAIN"),
 			})
 
-			var ind string
-			getDb := config.DB.Table("login_id_sessions").Select("login_id").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Limit(1).Scan(&ind)
-			if getDb.RowsAffected < 1 {
-				if err := config.DB.Table("login_id_sessions").Create(&loginIdSes).Error; err != nil {
-					utils.GetErrorJson("BAD_REQUEST", &errJson)
-					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-					return
-				}
-			} else {
-				updateData := map[string]interface{}{
-					"user_id":  user.UserID,
-					"login_id": loginId,
-				}
+			rewritten := false
+			if oldErr == nil && oldLoginId != "" {
+				result := config.DB.Table("login_id_sessions").
+					Where("LOWER(login_id) = ?", strings.ToLower(oldLoginId)).
+					Updates(map[string]interface{}{
+						"user_id":    user.UserID,
+						"login_id":   loginId,
+						"expires_at": expiresAt,
+					})
 
-				if err := config.DB.Table("login_id_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Updates(updateData).Error; err != nil {
+				if result.Error == nil && result.RowsAffected > 0 {
+					rewritten = true
+				}
+			}
+
+			if !rewritten {
+				loginIdSes := models.LoginIdSession{
+					UserId:    user.UserID,
+					LoginId:   loginId,
+					ExpiresAt: expiresAt,
+				}
+				if err := config.DB.Table("login_id_sessions").Create(&loginIdSes).Error; err != nil {
 					utils.GetErrorJson("BAD_REQUEST", &errJson)
 					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 					return
@@ -313,8 +323,21 @@ func Auth(r *gin.Engine) {
 			}
 
 			var loginData models.LoginIdSession
-			getDb := config.DB.Table("login_id_sessions").Where("LOWER(login_id) = ?", strings.ToLower(getCookie)).Select("user_id").First(&loginData)
+			getDb := config.DB.Table("login_id_sessions").
+				Where("LOWER(login_id) = ?", strings.ToLower(getCookie)).
+				First(&loginData)
+
 			if getDb.RowsAffected < 1 {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if loginData.ExpiresAt.Before(utils.NowTz()) {
+				config.DB.Table("login_id_sessions").
+					Where("login_id = ?", loginData.LoginId).
+					Delete(&models.LoginIdSession{})
+
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return

@@ -54,8 +54,9 @@ type LetterSession struct {
 }
 
 type LoginIdSession struct {
-	UserId  string `gorm:"primaryKey;type:text;not null" json:"user_id"`
-	LoginId string `gorm:"primaryKey;type:text;not null" json:"login_id"`
+	UserId    string    `gorm:"primaryKey;type:text;not null" json:"user_id"`
+	LoginId   string    `gorm:"primaryKey;type:text;not null" json:"login_id"`
+	ExpiresAt time.Time `gorm:"type:timestamptz" json:"expires_at"`
 }
 
 type ErrorDetail struct {
