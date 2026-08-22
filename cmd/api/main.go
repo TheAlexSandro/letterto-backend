@@ -25,6 +25,7 @@ func main() {
 	router.Letter(r)
 	router.User(r)
 	router.Music(r)
+	router.AI(r)
 	r.Run(":8000")
 	log.Print("started...")
 }

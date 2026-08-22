@@ -3,7 +3,6 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 )
@@ -41,6 +40,5 @@ func VerifyTurnstile(token, remoteIP string) (bool, error) {
 		return false, err
 	}
 
-	fmt.Println(result)
 	return result.Success, nil
 }

@@ -53,6 +53,11 @@ type LetterSession struct {
 	AccessAt  time.Time `gorm:"type:timestamptz" json:"access_at"`
 }
 
+type LoginIdSession struct {
+	UserId  string `gorm:"primaryKey;type:text;not null" json:"user_id"`
+	LoginId string `gorm:"primaryKey;type:text;not null" json:"login_id"`
+}
+
 type ErrorDetail struct {
 	Http    int    `json:"http"`
 	Code    string `json:"code"`

@@ -348,11 +348,6 @@ func Letter(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
-		// Deletes an object from R2 that was presigned/uploaded but is now
-		// being abandoned by the client — e.g. its sibling image/video
-		// failed validation, so the whole submission got cancelled and this
-		// one shouldn't be left orphaned in storage. Best-effort: we don't
-		// error out even if the key never actually existed.
 		letter.POST("/discardUpload", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 

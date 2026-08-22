@@ -123,24 +123,6 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
-			loginIdSigned, cookieErr := utils.EncodeCookie(os.Getenv("KEY_LAST_LOGIN"), userId)
-			if cookieErr != nil {
-				utils.GetErrorJson("BAD_REQUEST", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-			lastLogTimeout, _ := strconv.Atoi(os.Getenv("LAST_LOGIN_TIMEOUT"))
-			http.SetCookie(ctx.Writer, &http.Cookie{
-				Name:     os.Getenv("KEY_LAST_LOGIN"),
-				Value:    loginIdSigned,
-				Path:     "/",
-				MaxAge:   lastLogTimeout,
-				HttpOnly: true,
-				Secure:   true,
-				SameSite: utils.SetCookieSameSite(),
-				Domain:   os.Getenv("DOMAIN"),
-			})
-
 			refreshToken := utils.GenerateID(50)
 			newSession := models.Session{
 				RefreshToken: refreshToken,
@@ -174,6 +156,46 @@ func Auth(r *gin.Engine) {
 				Domain:   os.Getenv("DOMAIN"),
 			})
 
+			loginId := utils.GenerateID(50)
+			lastLogTimeout, _ := strconv.Atoi(os.Getenv("LAST_LOGIN_TIMEOUT"))
+
+			loginIdSes := models.LoginIdSession{
+				UserId:  userId,
+				LoginId: loginId,
+			}
+
+			http.SetCookie(ctx.Writer, &http.Cookie{
+				Name:     os.Getenv("KEY_LAST_LOGIN"),
+				Value:    loginId,
+				Path:     "/",
+				MaxAge:   lastLogTimeout,
+				HttpOnly: true,
+				Secure:   true,
+				SameSite: utils.SetCookieSameSite(),
+				Domain:   os.Getenv("DOMAIN"),
+			})
+
+			var ind string
+			getDb := config.DB.Table("login_id_sessions").Select("login_id").Where("LOWER(user_id) = ?", strings.ToLower(userId)).Limit(1).Scan(&ind)
+			if getDb.RowsAffected < 1 {
+				if err := config.DB.Table("login_id_sessions").Create(&loginIdSes).Error; err != nil {
+					utils.GetErrorJson("BAD_REQUEST", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+					return
+				}
+			} else {
+				updateData := map[string]interface{}{
+					"user_id":  userId,
+					"login_id": loginId,
+				}
+
+				if err := config.DB.Table("login_id_sessions").Where("LOWER(user_id) = ?", strings.ToLower(userId)).Updates(updateData).Error; err != nil {
+					utils.GetErrorJson("BAD_REQUEST", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+					return
+				}
+			}
+
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
@@ -201,13 +223,6 @@ func Auth(r *gin.Engine) {
 			checkPw := utils.CheckPasswordHash(value.Password, user.Password)
 			if !checkPw {
 				utils.GetErrorJson("INVALID_PASSWORD", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
-			loginIdSigned, cookieErr := utils.EncodeCookie(os.Getenv("KEY_LAST_LOGIN"), user.UserID)
-			if cookieErr != nil {
-				utils.GetErrorJson("BAD_REQUEST", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -244,10 +259,18 @@ func Auth(r *gin.Engine) {
 				SameSite: utils.SetCookieSameSite(),
 				Domain:   os.Getenv("DOMAIN"),
 			})
+
+			loginId := utils.GenerateID(50)
 			lastLogTimeout, _ := strconv.Atoi(os.Getenv("LAST_LOGIN_TIMEOUT"))
+
+			loginIdSes := models.LoginIdSession{
+				UserId:  user.UserID,
+				LoginId: loginId,
+			}
+
 			http.SetCookie(ctx.Writer, &http.Cookie{
 				Name:     os.Getenv("KEY_LAST_LOGIN"),
-				Value:    loginIdSigned,
+				Value:    loginId,
 				Path:     "/",
 				MaxAge:   lastLogTimeout,
 				HttpOnly: true,
@@ -255,6 +278,27 @@ func Auth(r *gin.Engine) {
 				SameSite: utils.SetCookieSameSite(),
 				Domain:   os.Getenv("DOMAIN"),
 			})
+
+			var ind string
+			getDb := config.DB.Table("login_id_sessions").Select("login_id").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Limit(1).Scan(&ind)
+			if getDb.RowsAffected < 1 {
+				if err := config.DB.Table("login_id_sessions").Create(&loginIdSes).Error; err != nil {
+					utils.GetErrorJson("BAD_REQUEST", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+					return
+				}
+			} else {
+				updateData := map[string]interface{}{
+					"user_id":  user.UserID,
+					"login_id": loginId,
+				}
+
+				if err := config.DB.Table("login_id_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Updates(updateData).Error; err != nil {
+					utils.GetErrorJson("BAD_REQUEST", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+					return
+				}
+			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
@@ -268,15 +312,16 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
-			decodeCookie, deErr := utils.DecodeCookie(os.Getenv("KEY_LAST_LOGIN"), getCookie)
-			if deErr != nil {
+			var loginData models.LoginIdSession
+			getDb := config.DB.Table("login_id_sessions").Where("LOWER(login_id) = ?", strings.ToLower(getCookie)).Select("user_id").First(&loginData)
+			if getDb.RowsAffected < 1 {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
 
 			var user models.User
-			if err := config.DB.Table("users").Where("LOWER(user_id) = ?", strings.ToLower(decodeCookie)).First(&user).Error; err != nil {
+			if err := config.DB.Table("users").Where("LOWER(user_id) = ?", strings.ToLower(loginData.UserId)).First(&user).Error; err != nil {
 				utils.GetErrorJson("USER_NOT_FOUND", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
