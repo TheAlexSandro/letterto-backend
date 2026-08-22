@@ -109,12 +109,14 @@ func AI(r *gin.Engine) {
 				return
 			}
 
-			r := map[string]string{
-				"session_id": result.Result.SessionId,
-				"result":     result.Result.Response,
+			var hasil *string
+			if result.Result.Response == "rejected" {
+				hasil = nil
+			} else {
+				hasil = &result.Result.Response
 			}
 
-			utils.JSON(ctx, 200, true, "Success!", r, "")
+			utils.JSON(ctx, 200, true, "Success!", gin.H{"result": hasil}, "")
 		})
 	}
 }
