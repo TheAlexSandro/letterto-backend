@@ -57,7 +57,8 @@ func AI(r *gin.Engine) {
 				return
 			}
 
-			if !utils.ValidateEnum(ctx, "style", input.Style, []string{"corp", "formal", "blibical", "anchient_letter", "flirt"}) {
+			getStyles := strings.Split(os.Getenv("REFRASE_STYLE"), ",")
+			if !utils.ValidateEnum(ctx, "style", input.Style, getStyles) {
 				return
 			}
 
