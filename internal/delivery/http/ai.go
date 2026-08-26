@@ -34,7 +34,7 @@ type Result struct {
 }
 
 var aiClient = &http.Client{
-	Timeout: 60 * time.Second,
+	Timeout: 120 * time.Second,
 }
 
 func AI(r *gin.Engine) {
@@ -116,6 +116,8 @@ func AI(r *gin.Engine) {
 			} else {
 				hasil = &result.Result.Response
 			}
+
+			utils.SendLog("User Akses Gemini AI:\n\nNama: " + user.Name + "\nID: <code>" + user.UserID + "</code>\nText:\n<blockquote expandable>" + input.Text + "</blockquote>\nStyle: " + style + "\nLang: " + input.Lang + "\nAI Result: <blockquote expandable>" + *hasil + "</blockquote>")
 
 			utils.JSON(ctx, 200, true, "Success!", gin.H{"result": hasil}, "")
 		})

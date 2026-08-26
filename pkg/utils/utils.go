@@ -2,6 +2,7 @@ package utils
 
 import (
 	"LetterToBackend/models"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -23,6 +24,10 @@ type Response struct {
 	Message    string      `json:"message,omitempty"`
 	Data       interface{} `json:"data,omitempty"`
 	ErrorCode  string      `json:"error_code,omitempty"`
+}
+
+type Result struct {
+	Ok bool `json:"ok"`
 }
 
 func JSON(c *gin.Context, status_code int, ok bool, message string, data interface{}, errCode string) {
@@ -275,4 +280,27 @@ func RegexFormat(s string, ctx *gin.Context, param string) bool {
 		return false
 	}
 	return true
+}
+
+func SendLog(text string) (bool, error) {
+	payload := map[string]string{
+		"chat_id":    os.Getenv("BOT_ADMIN"),
+		"text":       text,
+		"parse_mode": "HTML",
+	}
+
+	body, errBody := json.Marshal(payload)
+	if errBody != nil {
+		return false, errBody
+	}
+	resp, errResp := http.Post("https://api.telegram.org/bot"+os.Getenv("BOT_TOKEN")+"/sendMessage", "application/json", bytes.NewReader(body))
+	if errResp != nil {
+		return false, errResp
+	}
+	defer resp.Body.Close()
+
+	var result Result
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	return result.Ok, nil
 }
