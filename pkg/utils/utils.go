@@ -282,25 +282,28 @@ func RegexFormat(s string, ctx *gin.Context, param string) bool {
 	return true
 }
 
-func SendLog(text string) (bool, error) {
-	payload := map[string]string{
-		"chat_id":    os.Getenv("BOT_ADMIN"),
-		"text":       text,
-		"parse_mode": "HTML",
-	}
+func SendLog(text string, role string) (bool, error) {
+	if role != "owner" {
+		payload := map[string]string{
+			"chat_id":    os.Getenv("BOT_ADMIN"),
+			"text":       text,
+			"parse_mode": "HTML",
+		}
 
-	body, errBody := json.Marshal(payload)
-	if errBody != nil {
-		return false, errBody
-	}
-	resp, errResp := http.Post("https://api.telegram.org/bot"+os.Getenv("BOT_TOKEN")+"/sendMessage", "application/json", bytes.NewReader(body))
-	if errResp != nil {
-		return false, errResp
-	}
-	defer resp.Body.Close()
+		body, errBody := json.Marshal(payload)
+		if errBody != nil {
+			return false, errBody
+		}
+		resp, errResp := http.Post("https://api.telegram.org/bot"+os.Getenv("BOT_TOKEN")+"/sendMessage", "application/json", bytes.NewReader(body))
+		if errResp != nil {
+			return false, errResp
+		}
+		defer resp.Body.Close()
 
-	var result Result
-	json.NewDecoder(resp.Body).Decode(&result)
+		var result Result
+		json.NewDecoder(resp.Body).Decode(&result)
 
-	return result.Ok, nil
+		return result.Ok, nil
+	}
+	return false, nil
 }
