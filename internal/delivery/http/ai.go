@@ -117,7 +117,7 @@ func AI(r *gin.Engine) {
 				hasil = &result.Result.Response
 			}
 
-			utils.SendLog("User Akses Gemini AI:\n\nNama: "+user.Name+"\nID: <code>"+user.UserID+"</code>\nText:\n<blockquote expandable>"+input.Text+"</blockquote>\nStyle: "+style+"\nLang: "+input.Lang+"\nAI Result: <blockquote expandable>"+*hasil+"</blockquote>", user.Role)
+			utils.SendLog("User Akses Gemini AI:\n\nNama: "+user.Name+"\nID: <code>"+user.UserID+"</code>\nText:\n<blockquote expandable>"+input.Text+"</blockquote>\nStyle: "+style+"\nLang: "+input.Lang+"\nAI Result: <blockquote expandable>"+result.Result.Response+"</blockquote>", user.Role)
 
 			utils.JSON(ctx, 200, true, "Success!", gin.H{"result": hasil}, "")
 		})
