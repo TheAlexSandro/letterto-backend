@@ -4,6 +4,7 @@ import (
 	"LetterToBackend/internal/middleware"
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -45,7 +46,7 @@ func Feedback(r *gin.Engine) {
 
 			utils.SendLog("User memberi feedback:\n\nFitur: AI Gemini\nNama: "+user.Name+"\nID: <code>"+user.UserID+"</code>\nThumb: "+th+"\nStyle: "+input.Style+"\nLang: "+input.Lang+"\nFeedback: "+input.Feedback, "")
 
-			utils.JSON(ctx, 200, true, "Success!", nil, "")
+			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 	}
 }

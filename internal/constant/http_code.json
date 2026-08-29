@@ -152,5 +152,10 @@
     "BAD_GATEWAY": {
         "http": 502,
         "code": "BAD_GATEWAY"
+    },
+    "FEATURE_UNAVAILABLE": {
+        "http": 403,
+        "code": "FEATURE_UNAVAILABLE",
+        "message": "This feature is currently unavailable."
     }
 }

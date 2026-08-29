@@ -150,6 +150,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if !utils.HasFeature(userInfo.AccountFeature, "access_letter") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			if letter.Edit == "yes" && !isOwner {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -286,6 +292,13 @@ func Letter(r *gin.Engine) {
 			var input VerifyPassword
 			var letterInfo models.Letter
 
+			_, user := middleware.IsLogin(ctx)
+			if !utils.HasFeature(user.AccountFeature, "access_letter") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			if err := ctx.ShouldBindJSON(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "id, password", 1), nil, errJson.Code)
@@ -402,6 +415,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if !utils.HasFeature(user.AccountFeature, "new_letter") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			letterId := ctx.PostForm("letter_id")
 			recipientName := ctx.PostForm("recipient_name")
 			message := ctx.PostForm("message")
@@ -416,12 +435,13 @@ func Letter(r *gin.Engine) {
 			artist := ctx.PostForm("artist")
 			timeout := ctx.PostForm("timeout")
 			audioAutoplay := ctx.PostForm("audio_autoplay")
+			viewOnce := ctx.PostForm("view_once")
 
 			field := ctx.PostForm("field")
 			contentType := ctx.PostForm("content_type")
 			size := ctx.PostForm("size")
 
-			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" {
+			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" || viewOnce == "" {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "letter_id, recipient_name, message, music, music_profile, music_title, privacy, font, show_sender, show_recipient, arist", 1), nil, errJson.Code)
 				return
@@ -443,7 +463,7 @@ func Letter(r *gin.Engine) {
 
 			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
 				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
-				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) {
+				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "view_once", viewOnce, []string{"yes", "no"}) {
 				return
 			}
 
@@ -548,6 +568,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if !utils.HasFeature(user.AccountFeature, "new_letter") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			letterId := ctx.PostForm("letter_id")
 			recipientName := ctx.PostForm("recipient_name")
 			message := ctx.PostForm("message")
@@ -578,7 +604,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" {
+			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" || viewOnce == "" {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "letter_id, recipient_name, message, music, music_profile, music_title, privacy, font, show_sender, show_recipient, arist", 1), nil, errJson.Code)
 				return
@@ -600,7 +626,7 @@ func Letter(r *gin.Engine) {
 
 			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
 				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
-				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) {
+				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "view_once", audioAutoplay, []string{"yes", "no"}) {
 				return
 			}
 
@@ -615,11 +641,11 @@ func Letter(r *gin.Engine) {
 			imageKey := ctx.PostForm("image_key")
 			videoKey := ctx.PostForm("video_key")
 
-			imageUrl, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "image", imageKey)
+			imageUrl, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "image", imageKey, user.LetterFeature)
 			if !ok {
 				return
 			}
-			videoUrl, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "video", videoKey)
+			videoUrl, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "video", videoKey, user.LetterFeature)
 			if !ok {
 				return
 			}
@@ -641,6 +667,30 @@ func Letter(r *gin.Engine) {
 					return
 				}
 				timeoutPtr = &tm
+			}
+
+			if !utils.HasFeature(user.LetterFeature, "custom_id") {
+				letterId = utils.GenerateID(8)
+			}
+
+			defaults := []struct {
+				feature string
+				target  *string
+				value   string
+			}{
+				{"privacy", &privacy, "private"},
+				{"view_once", &viewOnce, "no"},
+				{"password", &password, "-"},
+				{"font", &font, "alike"},
+				{"show_sender", &showSender, "yes"},
+				{"show_recipient", &showRecipient, "yes"},
+				{"music_autoplay", &audioAutoplay, "no"},
+			}
+
+			for _, d := range defaults {
+				if !utils.HasFeature(user.LetterFeature, d.feature) {
+					*d.target = d.value
+				}
 			}
 
 			now := time.Now()
@@ -785,6 +835,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if !utils.HasFeature(user.AccountFeature, "edit_letter") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			letterId := ctx.PostForm("letter_id")
 			recipientName := ctx.PostForm("recipient_name")
 			message := ctx.PostForm("message")
@@ -826,7 +882,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" {
+			if letterId == "" || recipientName == "" || message == "" || music == "" || musicProfile == "" || musicTitle == "" || privacy == "" || font == "" || showSender == "" || showRecipient == "" || artist == "" || audioAutoplay == "" || view_once == "" {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "letter_id, recipient_name, message, music, music_profile, music_title, privacy, font, show_sender, show_recipient, arist", 1), nil, errJson.Code)
 				return
@@ -863,7 +919,7 @@ func Letter(r *gin.Engine) {
 
 			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
 				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
-				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) {
+				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "view_once", audioAutoplay, []string{"yes", "no"}) {
 				return
 			}
 
@@ -964,6 +1020,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
+			if !utils.HasFeature(user.AccountFeature, "edit_letter") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			letterId := ctx.PostForm("letter_id")
 			recipientName := ctx.PostForm("recipient_name")
 			message := ctx.PostForm("message")
@@ -1058,7 +1120,7 @@ func Letter(r *gin.Engine) {
 
 			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
 				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
-				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) {
+				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "view_once", view_once, []string{"yes", "no"}) {
 				return
 			}
 
@@ -1075,7 +1137,7 @@ func Letter(r *gin.Engine) {
 				}
 				imageUrl = "-"
 			} else {
-				newImageKey, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "image", imageKey)
+				newImageKey, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "image", imageKey, user.LetterFeature)
 				if !ok {
 					return
 				}
@@ -1093,7 +1155,7 @@ func Letter(r *gin.Engine) {
 				}
 				videoUrl = "-"
 			} else {
-				newVideoKey, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "video", videoKey)
+				newVideoKey, ok := utils.VerifyUploadedR2Key(ctx, &errJson, "video", videoKey, user.LetterFeature)
 				if !ok {
 					return
 				}
@@ -1118,6 +1180,29 @@ func Letter(r *gin.Engine) {
 				tms = *existing.Timeout
 			}
 
+			if !utils.HasFeature(user.LetterFeature, "custom_id") {
+				new_letterId = existing.LetterID
+			}
+
+			defaults := []struct {
+				feature string
+				target  *string
+				value   string
+			}{
+				{"privacy", &privacy, "private"},
+				{"view_once", &view_once, "no"},
+				{"font", &font, "alike"},
+				{"show_sender", &showSender, "yes"},
+				{"show_recipient", &showRecipient, "yes"},
+				{"music_autoplay", &audioAutoplay, "no"},
+			}
+
+			for _, d := range defaults {
+				if !utils.HasFeature(user.LetterFeature, d.feature) {
+					*d.target = d.value
+				}
+			}
+
 			updateData := map[string]interface{}{
 				"letter_id":      new_letterId,
 				"recipient_name": strings.TrimSpace(recipientName),
@@ -1140,17 +1225,21 @@ func Letter(r *gin.Engine) {
 				"audio_autoplay": audioAutoplay,
 			}
 
-			if password != "" && password != "-" {
-				if utils.ValidateLength(ctx, password, "Password") {
-					if !utils.RegexFormat(password, ctx, "Password") {
+			if !utils.HasFeature(user.LetterFeature, "password") {
+				updateData["password"] = "-"
+			} else {
+				if password != "" && password != "-" {
+					if utils.ValidateLength(ctx, password, "Password") {
+						if !utils.RegexFormat(password, ctx, "Password") {
+							return
+						}
+						updateData["password"] = password
+					} else {
 						return
 					}
-					updateData["password"] = password
 				} else {
-					return
+					updateData["password"] = "-"
 				}
-			} else {
-				updateData["password"] = "-"
 			}
 
 			if err := config.DB.Table("letters").Where("letter_id = ? AND user_id = ?", letterId, user.UserID).Updates(updateData).Error; err != nil {
@@ -1183,6 +1272,12 @@ func Letter(r *gin.Engine) {
 
 			if user.Role == "banned" {
 				utils.GetErrorJson("BANNED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if !utils.HasFeature(user.AccountFeature, "remove_letter") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -1220,6 +1315,13 @@ func Letter(r *gin.Engine) {
 			var input LetterSeach
 			var errJson models.ErrorDetail
 			var letters []models.Letter
+
+			_, user := middleware.IsLogin(ctx)
+			if !utils.HasFeature(user.AccountFeature, "find_letter") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
 
 			if err := ctx.ShouldBind(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)

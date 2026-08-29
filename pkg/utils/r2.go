@@ -205,7 +205,21 @@ func cleanupURLCache() {
 	}
 }
 
-func VerifyUploadedR2Key(ctx *gin.Context, errJson *models.ErrorDetail, field string, key string) (string, bool) {
+func VerifyUploadedR2Key(ctx *gin.Context, errJson *models.ErrorDetail, field string, key string, features string) (string, bool) {
+	if field == "image" && !HasFeature(features, "upload_image") {
+		DeleteFromR2(key)
+		GetErrorJson("FEATURE_UNAVAILABLE", errJson)
+		JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+		return "", false
+	}
+
+	if field == "video" && !HasFeature(features, "upload_video") {
+		DeleteFromR2(key)
+		GetErrorJson("FEATURE_UNAVAILABLE", errJson)
+		JSON(ctx, errJson.Http, false, errJson.Message, nil, "")
+		return "", false
+	}
+
 	if key == "" {
 		return "", true
 	}
@@ -213,7 +227,7 @@ func VerifyUploadedR2Key(ctx *gin.Context, errJson *models.ErrorDetail, field st
 	head, errHead := HeadR2Object(key)
 	if errHead != nil {
 		GetErrorJson("BAD_REQUEST", errJson)
-		JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{media}", field, 1), nil, errJson.Code)
+		JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 		return "", false
 	}
 

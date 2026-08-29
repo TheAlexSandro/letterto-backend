@@ -307,3 +307,57 @@ func SendLog(text string, role string) (bool, error) {
 	}
 	return false, nil
 }
+
+func ParseFeatures(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []string{}
+	}
+
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, f := range parts {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			result = append(result, f)
+		}
+	}
+	return result
+}
+
+func HasFeature(raw string, feature string) bool {
+	for _, f := range strings.Split(raw, ",") {
+		if strings.TrimSpace(f) == feature {
+			return true
+		}
+	}
+	return false
+}
+
+func HasAnyFeature(raw string, features ...string) bool {
+	list := strings.Split(raw, ",")
+	for _, f := range list {
+		f = strings.TrimSpace(f)
+		for _, target := range features {
+			if f == target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func HasAllFeature(raw string, features ...string) bool {
+	list := strings.Split(raw, ",")
+	set := make(map[string]bool, len(list))
+	for _, f := range list {
+		set[strings.TrimSpace(f)] = true
+	}
+
+	for _, target := range features {
+		if !set[target] {
+			return false
+		}
+	}
+	return true
+}

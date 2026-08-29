@@ -5,12 +5,14 @@ import (
 )
 
 type User struct {
-	UserID   string `gorm:"primaryKey;type:varchar(10);not null" json:"id"`
-	Name     string `gorm:"type:varchar(100);not null" json:"name"`
-	Username string `gorm:"uniqueIndex;type:text;not null" json:"username"`
-	Password string `gorm:"type:text;not null" json:"password"`
-	Profile  string `gorm:"type:text;default-" json:"profile"`
-	Role     string `gorm:"type:text;default:user" json:"role"`
+	UserID         string `gorm:"primaryKey;type:varchar(10);not null" json:"id"`
+	Name           string `gorm:"type:varchar(100);not null" json:"name"`
+	Username       string `gorm:"uniqueIndex;type:text;not null" json:"username"`
+	Password       string `gorm:"type:text;not null" json:"password"`
+	Profile        string `gorm:"type:text;default-" json:"profile"`
+	Role           string `gorm:"type:text;default:user" json:"role"`
+	AccountFeature string `gorm:"type:text;default:new_letter,edit_letter,remove_letter,find_letter,access_letter,change_password,change_username,change_name" json:"account_feature"`
+	LetterFeature  string `gorm:"type:text;default:privacy,view_once,password,font,custom_id,music_autoplay,show_sender,show_recipient,rephrase,upload_image,upload_video" json:"letter_feature"`
 }
 
 type Session struct {

@@ -68,6 +68,23 @@ func User(r *gin.Engine) {
 				return
 			}
 
+			checks := []struct {
+				condition bool
+				feature   string
+			}{
+				{value.Name != user.Name, "change_name"},
+				{value.Username != user.Username, "change_username"},
+				{value.NewPassword != "" || value.OldPassword != "", "change_password"},
+			}
+
+			for _, c := range checks {
+				if c.condition && !utils.HasFeature(user.AccountFeature, c.feature) {
+					utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+					return
+				}
+			}
+
 			if user.Role == "banned" && (value.Name != "" || value.Username != "") {
 				utils.GetErrorJson("BANNED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -181,6 +198,32 @@ func User(r *gin.Engine) {
 			}
 
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"user_id": user.UserID, "name": user.Name, "username": user.Username, "role": user.Role}, "")
+		})
+
+		user.GET("/accountFeature", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"feature": utils.ParseFeatures(user.AccountFeature)}, "")
+		})
+
+		user.GET("/letterFeature", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"feature": utils.ParseFeatures(user.LetterFeature)}, "")
 		})
 
 		user.GET("/users", func(ctx *gin.Context) {

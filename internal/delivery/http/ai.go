@@ -51,6 +51,12 @@ func AI(r *gin.Engine) {
 				return
 			}
 
+			if !utils.HasFeature(user.LetterFeature, "rephrase") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
 			if err := ctx.ShouldBindJSON(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "style, text, lang", 1), nil, errJson.Code)
@@ -119,7 +125,7 @@ func AI(r *gin.Engine) {
 
 			utils.SendLog("User Akses Gemini AI:\n\nNama: "+user.Name+"\nID: <code>"+user.UserID+"</code>\nText:\n<blockquote expandable>"+input.Text+"</blockquote>\nStyle: "+style+"\nLang: "+input.Lang+"\nAI Result: <blockquote expandable>"+result.Result.Response+"</blockquote>", user.Role)
 
-			utils.JSON(ctx, 200, true, "Success!", gin.H{"result": hasil}, "")
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"result": hasil}, "")
 		})
 	}
 }

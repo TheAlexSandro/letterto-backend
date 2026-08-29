@@ -81,7 +81,7 @@ func Music(r *gin.Engine) {
 				return
 			}
 
-			utils.JSON(ctx, 200, true, "Success!", dr.Data, "")
+			utils.JSON(ctx, http.StatusOK, true, "Success!", dr.Data, "")
 		})
 
 		music.GET("/preview", func(ctx *gin.Context) {
@@ -126,7 +126,7 @@ func Music(r *gin.Engine) {
 				return
 			}
 
-			utils.JSON(ctx, 200, true, "Success!", json.RawMessage(body), "")
+			utils.JSON(ctx, http.StatusOK, true, "Success!", json.RawMessage(body), "")
 		})
 	}
 }
