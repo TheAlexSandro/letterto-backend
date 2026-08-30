@@ -6,7 +6,6 @@ import (
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
 	"encoding/json"
-	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -1121,7 +1120,6 @@ func Letter(r *gin.Engine) {
 				new_letterId = existing.LetterID
 			}
 
-			fmt.Println(is_burned)
 			if is_burned == "" {
 				is_burned = existing.IsBurned
 			} else {
@@ -1322,8 +1320,8 @@ func Letter(r *gin.Engine) {
 			var errJson models.ErrorDetail
 			var letters []models.Letter
 
-			_, user := middleware.IsLogin(ctx)
-			if !utils.HasFeature(user.AccountFeature, "find_letter") {
+			isLogin, user := middleware.IsLogin(ctx)
+			if isLogin && !utils.HasFeature(user.AccountFeature, "find_letter") {
 				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
