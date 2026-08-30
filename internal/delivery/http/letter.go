@@ -6,6 +6,7 @@ import (
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
 	"encoding/json"
+	"fmt"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -150,7 +151,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			if !utils.HasFeature(userInfo.AccountFeature, "access_letter") {
+			if isLogin && !utils.HasFeature(userInfo.AccountFeature, "access_letter") {
 				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
@@ -909,18 +910,18 @@ func Letter(r *gin.Engine) {
 				}
 			}
 
+			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
+				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
+				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "view_once", audioAutoplay, []string{"yes", "no"}) {
+				return
+			}
+
 			if new_letterId == "" {
 				new_letterId = existing.LetterID
 			}
 
 			if is_burned == "" {
 				is_burned = existing.IsBurned
-			}
-
-			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
-				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
-				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "view_once", audioAutoplay, []string{"yes", "no"}) {
-				return
 			}
 
 			if !utils.RegexFormat(new_letterId, ctx, "ID") {
@@ -1110,18 +1111,23 @@ func Letter(r *gin.Engine) {
 				}
 			}
 
-			if new_letterId == "" {
-				new_letterId = existing.LetterID
-			}
-
-			if is_burned == "" {
-				is_burned = existing.IsBurned
-			}
-
 			if !utils.ValidateEnum(ctx, "privacy", privacy, []string{"public", "private"}) ||
 				!utils.ValidateEnum(ctx, "show_sender", showSender, []string{"yes", "no"}) ||
 				!utils.ValidateEnum(ctx, "show_recipient", showRecipient, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "audio_autoplay", audioAutoplay, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "view_once", view_once, []string{"yes", "no"}) {
 				return
+			}
+
+			if new_letterId == "" {
+				new_letterId = existing.LetterID
+			}
+
+			fmt.Println(is_burned)
+			if is_burned == "" {
+				is_burned = existing.IsBurned
+			} else {
+				if !utils.ValidateEnum(ctx, "is_burned", is_burned, []string{"yes", "no"}) {
+					return
+				}
 			}
 
 			if !utils.RegexFormat(new_letterId, ctx, "ID") {

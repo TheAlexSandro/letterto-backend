@@ -88,13 +88,6 @@ func Music(r *gin.Engine) {
 			var input PreviewMusic
 			var errJson models.ErrorDetail
 
-			verify, _ := middleware.IsLogin(ctx)
-			if !verify {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
 			if err := ctx.ShouldBind(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "id", 1), nil, errJson.Code)
