@@ -5,7 +5,6 @@ import (
 	"LetterToBackend/internal/middleware"
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
-	"encoding/json"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -292,8 +291,8 @@ func Letter(r *gin.Engine) {
 			var input VerifyPassword
 			var letterInfo models.Letter
 
-			_, user := middleware.IsLogin(ctx)
-			if !utils.HasFeature(user.AccountFeature, "access_letter") {
+			isLogin, user := middleware.IsLogin(ctx)
+			if isLogin && !utils.HasFeature(user.AccountFeature, "access_letter") {
 				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
@@ -305,7 +304,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			getDb := config.DB.Table("letters").Select("password").Where("letter_id = ?", input.ID).First(&letterInfo)
+			getDb := config.DB.Table("letters").Select("password").Where("LOWER(letter_id) = ?", strings.ToLower(input.ID)).First(&letterInfo)
 			if getDb.RowsAffected < 0 {
 				utils.GetErrorJson("LETTER_NOT_FOUND", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -318,7 +317,7 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			refreshToken := utils.GenerateID(50)
+			refreshToken := utils.GenerateID(20)
 
 			newSession := models.LetterSession{
 				SessionID: refreshToken,
@@ -333,25 +332,12 @@ func Letter(r *gin.Engine) {
 				return
 			}
 
-			cookieData := models.LetterCookieData{
-				SessionID: refreshToken,
-				LetterID:  input.ID,
-			}
-			jsonBytes, _ := json.Marshal(cookieData)
-
-			signedValue, cookieErr := utils.EncodeCookie(os.Getenv("KEY_SES_LETTER"), string(jsonBytes))
-			if cookieErr != nil {
-				utils.GetErrorJson("BAD_REQUEST", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
 			timeout, _ := strconv.Atoi(os.Getenv("COOKIE_TIMEOUT"))
 			http.SetCookie(ctx.Writer, &http.Cookie{
-				Name:     os.Getenv("KEY_SES_LETTER"),
-				Value:    signedValue,
+				Name:     input.ID + "-" + os.Getenv("KEY_SES_LETTER"),
+				Value:    refreshToken,
 				Path:     "/",
-				MaxAge:   timeout,
+				MaxAge:   timeout - 3100,
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: utils.SetCookieSameSite(),
