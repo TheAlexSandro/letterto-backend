@@ -156,6 +156,11 @@
     "FEATURE_UNAVAILABLE": {
         "http": 403,
         "code": "FEATURE_UNAVAILABLE",
-        "message": "This feature is currently unavailable."
+        "message": "You don't have access to this feature."
+    },
+    "BLOG_NOT_FOUND": {
+        "http": 404,
+        "code": "BLOG_NOT_FOUND",
+        "message": "This blog does not exist."
     }
 }

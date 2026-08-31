@@ -27,6 +27,7 @@ func main() {
 	router.Music(r)
 	router.AI(r)
 	router.Feedback(r)
+	router.Blog(r)
 	r.Run(":8000")
 	log.Print("started...")
 }

@@ -322,7 +322,7 @@ func Letter(r *gin.Engine) {
 			newSession := models.LetterSession{
 				SessionID: refreshToken,
 				LetterID:  input.ID,
-				ExpiresAt: utils.NowTz().Add(utils.GetExpiry()),
+				ExpiresAt: utils.NowTz().Add(300),
 				AccessAt:  utils.NowTz(),
 			}
 
