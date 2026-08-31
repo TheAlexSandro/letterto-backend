@@ -49,6 +49,20 @@ type BlogResponse struct {
 	Viewer      int    `json:"viewer"`
 }
 
+type BlogEditConfig struct {
+	BlogId          string `json:"blog_id"`
+	ShowCreatorName string `json:"show_creator_name"`
+	Privacy         string `json:"privacy"`
+}
+
+func limitString(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) > max {
+		return string(runes[:max])
+	}
+	return s
+}
+
 func Blog(r *gin.Engine) {
 	blog := r.Group("blog")
 	{
@@ -144,9 +158,64 @@ func Blog(r *gin.Engine) {
 			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"blog_id": blogData.BlogId}, "")
 		})
 
+		blog.POST("/edit/config", func(ctx *gin.Context) {
+			var input BlogEditConfig
+			var errJson models.ErrorDetail
+
+			verify, user := middleware.IsLogin(ctx)
+			if !verify {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if !utils.HasFeature(user.AccountFeature, "blog_manage") {
+				utils.GetErrorJson("FEATURE_UNAVAILABLE", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if err := ctx.ShouldBindJSON(&input); err != nil {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "blog_id, show_creator_name, config", 1), nil, errJson.Code)
+				return
+			}
+
+			if !utils.ValidateEnum(ctx, "show_creator_name", input.ShowCreatorName, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "privacy", input.Privacy, []string{"public", "private"}) {
+				return
+			}
+
+			var blogData models.Blog
+			if err := config.DB.Table("blogs").Where("LOWER(blog_id) = ?", strings.ToLower(input.BlogId)).First(&blogData).Error; err != nil {
+				utils.GetErrorJson("BLOG_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if blogData.CreatorId != user.UserID {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if err := config.DB.Table("blogs").
+				Where("LOWER(blog_id) = ?", strings.ToLower(blogData.BlogId)).
+				Updates(map[string]interface{}{
+					"show_creator_name": input.ShowCreatorName,
+					"privacy":           input.Privacy,
+				}).Error; err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"blog_id": blogData.BlogId}, "")
+		})
+
 		blog.GET("/list", func(ctx *gin.Context) {
 			var errJson models.ErrorDetail
 
+			isLogin, user := middleware.IsLogin(ctx)
 			const limit = 7
 			offset, err := strconv.Atoi(ctx.DefaultQuery("offset", "0"))
 			if err != nil || offset < 0 {
@@ -155,7 +224,7 @@ func Blog(r *gin.Engine) {
 
 			var blogList []models.Blog
 
-			result := config.DB.Table("blogs").
+			result := config.DB.Table("blogs").Select("blog_id", "creator_id", "created_at", "title", "LEFT(content, 150) AS content", "last_edit", "viewer", "privacy", "show_creator_name").
 				Order("created_at DESC").
 				Limit(limit).
 				Offset(offset).
@@ -194,9 +263,13 @@ func Blog(r *gin.Engine) {
 
 			respList := make([]BlogResponse, 0, len(blogList))
 			for _, b := range blogList {
+				if b.Privacy == "private" && (!isLogin || !utils.HasFeature(user.AccountFeature, "blog_manage")) {
+					continue
+				}
+
 				creatorName := nameMap[b.CreatorId]
-				if creatorName == "" {
-					creatorName = "Unknown"
+				if creatorName == "" || b.ShowCreatorName == "no" {
+					creatorName = "Administrator"
 				}
 
 				respList = append(respList, BlogResponse{
@@ -235,15 +308,20 @@ func Blog(r *gin.Engine) {
 				return
 			}
 
-			// ambil nama creator, dibutuhin halaman single-view blog
-			creatorName := "Unknown"
+			creatorName := "Administrator"
 			var creatorUser models.User
-			if err := config.DB.Table("users").Where("user_id = ?", blogData.CreatorId).First(&creatorUser).Error; err == nil {
+			if err := config.DB.Table("users").Where("user_id = ?", blogData.CreatorId).First(&creatorUser).Error; err == nil && blogData.ShowCreatorName == "yes" {
 				creatorName = creatorUser.Name
 			}
 
 			isLogin, user := middleware.IsLogin(ctx)
 			isOwner := isLogin && blogData.CreatorId == user.UserID
+
+			if blogData.Privacy == "private" && (!isLogin || !utils.HasFeature(user.AccountFeature, "blog_manage")) {
+				utils.GetErrorJson("BLOG_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
 
 			resp := gin.H{
 				"blog_id":      blogData.BlogId,
@@ -254,6 +332,28 @@ func Blog(r *gin.Engine) {
 				"content":      blogData.Content,
 				"viewer":       blogData.Viewer,
 				"is_owner":     isOwner,
+			}
+
+			if isOwner {
+				resp["privacy"] = blogData.Privacy
+				resp["show_creator_name"] = blogData.ShowCreatorName
+			}
+
+			if blogData.LastEdit == "-" {
+				resp["last_edit"] = nil
+			} else {
+				dateStr := blogData.LastEdit
+				if idx := strings.Index(dateStr, " m="); idx != -1 {
+					dateStr = dateStr[:idx]
+				}
+				layout := "2006-01-02 15:04:05.999999999 -0700 MST"
+				date, err := time.Parse(layout, dateStr)
+				if err != nil {
+					panic(err)
+				}
+				dt := date.Format("02/01/06")
+
+				resp["last_edit"] = &dt
 			}
 
 			if !isOwner {
