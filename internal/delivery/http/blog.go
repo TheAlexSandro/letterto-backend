@@ -325,7 +325,6 @@ func Blog(r *gin.Engine) {
 
 			resp := gin.H{
 				"blog_id":      blogData.BlogId,
-				"creator_id":   blogData.CreatorId,
 				"creator_name": creatorName,
 				"created_at":   blogData.CreatedAt.Format("02/01/06"),
 				"title":        blogData.Title,
@@ -335,25 +334,34 @@ func Blog(r *gin.Engine) {
 			}
 
 			if isOwner {
+				var creatorName bool
+				if blogData.ShowCreatorName == "yes" {
+					creatorName = true
+				} else {
+					creatorName = false
+				}
+
 				resp["privacy"] = blogData.Privacy
-				resp["show_creator_name"] = blogData.ShowCreatorName
+				resp["show_creator_name"] = creatorName
 			}
 
-			if blogData.LastEdit == "-" {
-				resp["last_edit"] = nil
-			} else {
-				dateStr := blogData.LastEdit
-				if idx := strings.Index(dateStr, " m="); idx != -1 {
-					dateStr = dateStr[:idx]
-				}
-				layout := "2006-01-02 15:04:05.999999999 -0700 MST"
-				date, err := time.Parse(layout, dateStr)
-				if err != nil {
-					panic(err)
-				}
-				dt := date.Format("02/01/06")
+			if isOwner || (isLogin && utils.HasFeature(user.AccountFeature, "blog_manage")) {
+				if blogData.LastEdit != "-" {
+					dateStr := blogData.LastEdit
+					if idx := strings.Index(dateStr, " m="); idx != -1 {
+						dateStr = dateStr[:idx]
+					}
+					layout := "2006-01-02 15:04:05.999999999 -0700 MST"
+					date, err := time.Parse(layout, dateStr)
+					if err != nil {
+						panic(err)
+					}
+					dt := date.Format("02/01/06")
 
-				resp["last_edit"] = &dt
+					resp["last_edit"] = &dt
+				} else {
+					resp["last_edit"] = nil
+				}
 			}
 
 			if !isOwner {
