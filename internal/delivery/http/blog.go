@@ -277,7 +277,7 @@ func Blog(r *gin.Engine) {
 				}
 
 				var reads *int
-				if b.ShowReads == "yes" {
+				if b.ShowReads == "yes" || (isLogin && utils.HasFeature(user.AccountFeature, "blog_manage")) {
 					reads = &b.Viewer
 				} else {
 					reads = nil
@@ -337,7 +337,7 @@ func Blog(r *gin.Engine) {
 				"is_owner":     isOwner,
 			}
 
-			if isOwner || (isLogin && utils.HasFeature(user.AccountFeature, "blog_manage")) {
+			if isLogin && utils.HasFeature(user.AccountFeature, "blog_manage") {
 				if blogData.LastEdit != "-" {
 					dateStr := blogData.LastEdit
 					if idx := strings.Index(dateStr, " m="); idx != -1 {
