@@ -68,15 +68,17 @@ type ErrorDetail struct {
 }
 
 type Blog struct {
-	BlogId          string    `gorm:"primaryKey;type:varchar(10);not null" json:"blog_id"`
-	CreatorId       string    `gorm:"type:text;not null" json:"creator_id"`
-	CreatedAt       time.Time `gorm:"type:timestamptz;not null" json:"created_at"`
-	Title           string    `gorm:"type:text;not null" json:"title"`
-	Content         string    `gorm:"type:text;not null" json:"content"`
-	LastEdit        string    `gorm:"type:text;default:-" json:"last_edit"`
-	Viewer          int       `gorm:"type:integer;default:0" json:"viewer"`
-	ShowCreatorName string    `gorm:"type:text;default:yes" json:"show_creator_name"`
-	Privacy         string    `gorm:"type:text;default:public" json:"privacy"`
+	BlogId           string    `gorm:"primaryKey;type:varchar(10);not null" json:"blog_id"`
+	CreatorId        string    `gorm:"type:text;not null" json:"creator_id"`
+	CreatedAt        time.Time `gorm:"type:timestamptz;not null" json:"created_at"`
+	Title            string    `gorm:"type:text;not null" json:"title"`
+	Content          string    `gorm:"type:text;not null" json:"content"`
+	LastEdit         string    `gorm:"type:text;default:-" json:"last_edit"`
+	Viewer           int       `gorm:"type:integer;default:0" json:"viewer"`
+	ShowCreatorName  string    `gorm:"type:text;default:yes" json:"show_creator_name"`
+	Privacy          string    `gorm:"type:text;default:public" json:"privacy"`
+	ShowReads        string    `gorm:"type:text;default:yes" json:"show_reads"`
+	ShowReturnButton string    `gorm:"type:text;default:yes" json:"show_return_button"`
 }
 
 var ErrorMapping map[string]ErrorDetail

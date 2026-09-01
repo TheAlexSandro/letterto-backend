@@ -46,13 +46,15 @@ type BlogResponse struct {
 	CreatedAt   string `json:"created_at"`
 	Title       string `json:"title"`
 	Content     string `json:"content"`
-	Viewer      int    `json:"viewer"`
+	Viewer      *int   `json:"viewer"`
 }
 
 type BlogEditConfig struct {
-	BlogId          string `json:"blog_id"`
-	ShowCreatorName string `json:"show_creator_name"`
-	Privacy         string `json:"privacy"`
+	BlogId           string `json:"blog_id"`
+	ShowCreatorName  string `json:"show_creator_name"`
+	Privacy          string `json:"privacy"`
+	ShowReads        string `json:"show_reads"`
+	ShowReturnButton string `json:"show_return_button"`
 }
 
 func limitString(s string, max int) string {
@@ -181,7 +183,7 @@ func Blog(r *gin.Engine) {
 				return
 			}
 
-			if !utils.ValidateEnum(ctx, "show_creator_name", input.ShowCreatorName, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "privacy", input.Privacy, []string{"public", "private"}) {
+			if !utils.ValidateEnum(ctx, "show_creator_name", input.ShowCreatorName, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "privacy", input.Privacy, []string{"public", "private"}) || !utils.ValidateEnum(ctx, "show_reads", input.ShowReads, []string{"yes", "no"}) || !utils.ValidateEnum(ctx, "show_return_button", input.ShowReturnButton, []string{"yes", "no"}) {
 				return
 			}
 
@@ -201,8 +203,10 @@ func Blog(r *gin.Engine) {
 			if err := config.DB.Table("blogs").
 				Where("LOWER(blog_id) = ?", strings.ToLower(blogData.BlogId)).
 				Updates(map[string]interface{}{
-					"show_creator_name": input.ShowCreatorName,
-					"privacy":           input.Privacy,
+					"show_creator_name":  input.ShowCreatorName,
+					"privacy":            input.Privacy,
+					"show_reads":         input.ShowReads,
+					"show_return_button": input.ShowReturnButton,
 				}).Error; err != nil {
 				utils.GetErrorJson("BAD_REQUEST", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -224,7 +228,7 @@ func Blog(r *gin.Engine) {
 
 			var blogList []models.Blog
 
-			result := config.DB.Table("blogs").Select("blog_id", "creator_id", "created_at", "title", "LEFT(content, 150) AS content", "last_edit", "viewer", "privacy", "show_creator_name").
+			result := config.DB.Table("blogs").Select("blog_id", "creator_id", "created_at", "title", "LEFT(content, 150) AS content", "last_edit", "viewer", "privacy", "show_creator_name", "show_reads").
 				Order("created_at DESC").
 				Limit(limit).
 				Offset(offset).
@@ -272,13 +276,20 @@ func Blog(r *gin.Engine) {
 					creatorName = "Administrator"
 				}
 
+				var reads *int
+				if b.ShowReads == "yes" {
+					reads = &b.Viewer
+				} else {
+					reads = nil
+				}
+
 				respList = append(respList, BlogResponse{
 					BlogId:      b.BlogId,
 					CreatorName: creatorName,
 					CreatedAt:   b.CreatedAt.Format("02/01/06"),
 					Title:       b.Title,
 					Content:     b.Content,
-					Viewer:      b.Viewer,
+					Viewer:      reads,
 				})
 			}
 
@@ -317,32 +328,13 @@ func Blog(r *gin.Engine) {
 			isLogin, user := middleware.IsLogin(ctx)
 			isOwner := isLogin && blogData.CreatorId == user.UserID
 
-			if blogData.Privacy == "private" && (!isLogin || !utils.HasFeature(user.AccountFeature, "blog_manage")) {
-				utils.GetErrorJson("BLOG_NOT_FOUND", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
 			resp := gin.H{
 				"blog_id":      blogData.BlogId,
 				"creator_name": creatorName,
 				"created_at":   blogData.CreatedAt.Format("02/01/06"),
 				"title":        blogData.Title,
 				"content":      blogData.Content,
-				"viewer":       blogData.Viewer,
 				"is_owner":     isOwner,
-			}
-
-			if isOwner {
-				var creatorName bool
-				if blogData.ShowCreatorName == "yes" {
-					creatorName = true
-				} else {
-					creatorName = false
-				}
-
-				resp["privacy"] = blogData.Privacy
-				resp["show_creator_name"] = creatorName
 			}
 
 			if isOwner || (isLogin && utils.HasFeature(user.AccountFeature, "blog_manage")) {
@@ -362,6 +354,44 @@ func Blog(r *gin.Engine) {
 				} else {
 					resp["last_edit"] = nil
 				}
+
+				var creatorName bool
+				if blogData.ShowCreatorName == "yes" {
+					creatorName = true
+				} else {
+					creatorName = false
+				}
+				var showReads bool
+				if blogData.ShowReads == "yes" {
+					showReads = true
+				} else {
+					showReads = false
+				}
+				var showRButton bool
+				if blogData.ShowReturnButton == "yes" {
+					showRButton = true
+				} else {
+					showRButton = false
+				}
+
+				resp["privacy"] = blogData.Privacy
+				resp["show_creator_name"] = creatorName
+				resp["show_reads"] = showReads
+				resp["viewer"] = blogData.Viewer + 1
+				resp["show_return_button"] = true
+				resp["c_show_return_button"] = showRButton
+			} else {
+				if blogData.ShowReads == "yes" {
+					v := blogData.Viewer
+					resp["viewer"] = v + 1
+				} else {
+					resp["viewer"] = nil
+				}
+				if blogData.ShowReturnButton == "yes" {
+					resp["show_return_button"] = true
+				} else {
+					resp["show_return_button"] = false
+				}
 			}
 
 			if !isOwner {
@@ -371,7 +401,6 @@ func Blog(r *gin.Engine) {
 					config.DB.Table("blogs").
 						Where("LOWER(blog_id) = ?", strings.ToLower(blogData.BlogId)).
 						Update("viewer", newView)
-					resp["viewer"] = newView
 
 					token := utils.GenerateID(20)
 
