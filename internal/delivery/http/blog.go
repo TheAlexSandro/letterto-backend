@@ -377,7 +377,7 @@ func Blog(r *gin.Engine) {
 				resp["privacy"] = blogData.Privacy
 				resp["show_creator_name"] = creatorName
 				resp["show_reads"] = showReads
-				resp["viewer"] = blogData.Viewer + 1
+				resp["viewer"] = blogData.Viewer
 				resp["show_return_button"] = true
 				resp["c_show_return_button"] = showRButton
 			} else {
