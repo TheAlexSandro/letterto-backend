@@ -5,14 +5,17 @@ import (
 )
 
 type User struct {
-	UserID         string `gorm:"primaryKey;type:varchar(10);not null" json:"id"`
-	Name           string `gorm:"type:varchar(100);not null" json:"name"`
-	Username       string `gorm:"uniqueIndex;type:text;not null" json:"username"`
-	Password       string `gorm:"type:text;not null" json:"password"`
-	Profile        string `gorm:"type:text;default-" json:"profile"`
-	Role           string `gorm:"type:text;default:user" json:"role"`
-	AccountFeature string `gorm:"type:text;default:new_letter,edit_letter,remove_letter,find_letter,access_letter,change_password,change_username,change_name" json:"account_feature"`
-	LetterFeature  string `gorm:"type:text;default:privacy,view_once,password,font,custom_id,music_autoplay,show_sender,show_recipient,rephrase,upload_image,upload_video" json:"letter_feature"`
+	UserID                string     `gorm:"primaryKey;type:varchar(10);not null" json:"id"`
+	Name                  string     `gorm:"type:varchar(100);not null" json:"name"`
+	Username              string     `gorm:"uniqueIndex;type:text;not null" json:"username"`
+	Password              string     `gorm:"type:text;not null" json:"password"`
+	Profile               string     `gorm:"type:text;default-" json:"profile"`
+	Role                  string     `gorm:"type:text;default:user" json:"role"`
+	AccountFeature        string     `gorm:"type:text;default:new_letter,edit_letter,remove_letter,find_letter,access_letter,change_password,change_username,change_name" json:"account_feature"`
+	LetterFeature         string     `gorm:"type:text;default:privacy,view_once,password,font,custom_id,music_autoplay,show_sender,show_recipient,rephrase,upload_image,upload_video" json:"letter_feature"`
+	Email                 string     `gorm:"type:text;default:-" json:"email"`
+	AuthCode              string     `gorm:"type:text;default:-" json:"auth_code"`
+	BackupCodesGeneration *time.Time `gorm:"type:timestamptz;" json:"backup_codes_generation"`
 }
 
 type Session struct {
@@ -79,6 +82,28 @@ type Blog struct {
 	Privacy          string    `gorm:"type:text;default:public" json:"privacy"`
 	ShowReads        string    `gorm:"type:text;default:yes" json:"show_reads"`
 	ShowReturnButton string    `gorm:"type:text;default:yes" json:"show_return_button"`
+}
+
+type Otp struct {
+	OtpId     string    `gorm:"primaryKey;type:text" json:"otp_id"`
+	UserId    string    `gorm:"primaryKey;type:text" json:"user_id"`
+	Otp       string    `gorm:"primaryKey;type:text" json:"otp"`
+	ExpiresAt time.Time `gorm:"type:timestamptz;not null" json:"expires_at"`
+	Email     string    `gorm:"type:text;not null" json:"email"`
+}
+
+type CookieSession struct {
+	SessionId string `gorm:"primaryKey;type:text" json:"otp_id"`
+	UserId    string `gorm:"primaryKey;type:text" json:"user_id"`
+	Name      string `gorm:"type:text" json:"name"`
+}
+
+type BackupCode struct {
+	BackupCodeId string    `gorm:"primaryKey;type:text" json:"backup_code_id"`
+	UserID       string    `gorm:"primaryKey;type:text" json:"user_id"`
+	CodeHash     string    `gorm:"type:text" json:"code_hash"`
+	CreatedAt    time.Time `gorm:"type:timestamptz" json:"created_at"`
+	Used         string    `gorm:"type:text:default:no" json:"used"`
 }
 
 var ErrorMapping map[string]ErrorDetail

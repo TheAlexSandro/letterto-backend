@@ -11,6 +11,7 @@ require (
 	github.com/gorilla/securecookie v1.1.2
 	github.com/joho/godotenv v1.5.1
 	github.com/microcosm-cc/bluemonday v1.0.27
+	github.com/pquerna/otp v1.5.0
 	golang.org/x/crypto v0.54.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.2
@@ -32,6 +33,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.44.1 // indirect
 	github.com/aws/smithy-go v1.27.3 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.2 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect

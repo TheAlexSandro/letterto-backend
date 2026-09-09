@@ -162,5 +162,34 @@
         "http": 404,
         "code": "BLOG_NOT_FOUND",
         "message": "This blog does not exist."
+    },
+    "INVALID_EMAIL": {
+        "http": 406,
+        "code": "INVALID_EMAIL",
+        "message": "Invalid email."
+    },
+    "INVALID_VERIFICATION_CODE": {
+        "http": 401,
+        "code": "INVALID_VERIFICATION_CODE",
+        "message": "Invalid verification code."
+    },
+    "COOLDOWN": {
+        "http": 403,
+        "code": "COOLDOWN",
+        "message": "Cooldown in progress..."
+    },
+    "EMAIL_USED": {
+        "http": 302,
+        "code": "EMAIL_USED",
+        "message": "Email has already used in this account."
+    },
+    "NOT_GENERATED": {
+        "http": 409,
+        "code": "NOT_GENERATED",
+        "message": "You don't have any generated backup codes"
+    },
+    "RATE_LIMITED": {
+        "http": 429,
+        "code": "RATE_LIMITED"
     }
 }

@@ -3,6 +3,9 @@ package utils
 import (
 	"LetterToBackend/models"
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -308,7 +311,7 @@ func SendLog(text string, role string) (bool, error) {
 	return false, nil
 }
 
-func ParseFeatures(raw string) []string {
+func ToArray(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return []string{}
@@ -360,4 +363,23 @@ func HasAllFeature(raw string, features ...string) bool {
 		}
 	}
 	return true
+}
+
+func HashCode(code string) string {
+	sum := sha256.Sum256([]byte(code))
+	return hex.EncodeToString(sum[:])
+}
+
+func DeriveKeys(secret string) (encKey, macKey []byte) {
+	base := sha256.Sum256([]byte(secret))
+
+	h1 := hmac.New(sha256.New, base[:])
+	h1.Write([]byte("enc"))
+	encKey = h1.Sum(nil)
+
+	h2 := hmac.New(sha256.New, base[:])
+	h2.Write([]byte("mac"))
+	macKey = h2.Sum(nil)
+
+	return encKey, macKey
 }
