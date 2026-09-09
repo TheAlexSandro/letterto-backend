@@ -38,7 +38,6 @@ type VerifyMfa struct {
 	UserId string `json:"user_id" binding:"required"`
 	Code   string `json:"code" binding:"required"`
 	Type   string `json:"type" binding:"required"`
-	NoAsk  string `json:"no_ask" binding:"required"`
 }
 
 func Auth(r *gin.Engine) {
