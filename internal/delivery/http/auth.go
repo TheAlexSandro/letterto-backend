@@ -38,6 +38,7 @@ type VerifyMfa struct {
 	UserId string `json:"user_id" binding:"required"`
 	Code   string `json:"code" binding:"required"`
 	Type   string `json:"type" binding:"required"`
+	NoAsk  string `json:"no_ask" binding:"required"`
 }
 
 func Auth(r *gin.Engine) {
@@ -280,6 +281,8 @@ func Auth(r *gin.Engine) {
 				mfa = "backup_code"
 			}
 
+			config.DB.Table("cookie_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.CookieSession{})
+
 			if user.Email == "-" && user.AuthCode == "-" && count < 1 {
 				refreshToken := utils.GenerateID(50)
 				newSession := models.Session{
@@ -370,8 +373,6 @@ func Auth(r *gin.Engine) {
 					return
 				}
 
-				config.DB.Table("cookie_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.CookieSession{})
-
 				otpSessionData := models.CookieSession{
 					SessionId: enc,
 					UserId:    user.UserID,
@@ -430,7 +431,7 @@ func Auth(r *gin.Engine) {
 			}
 
 			var user models.User
-			getUser := config.DB.Table("users").Select("auth_code").
+			getUser := config.DB.Table("users").Select("user_id", "auth_code").
 				Where("LOWER(user_id) = ?", strings.ToLower(input.UserId)).
 				First(&user)
 
@@ -483,6 +484,8 @@ func Auth(r *gin.Engine) {
 					return
 				}
 			}
+
+			config.DB.Table("cookie_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.CookieSession{})
 
 			refreshToken := utils.GenerateID(50)
 			newSession := models.Session{
