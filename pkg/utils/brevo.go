@@ -312,6 +312,13 @@ func (b *BrevoClient) SendOTP(
 											>
 										</td>
 									</tr>
+									<tr>
+										<td class="info-row">
+											<span
+												>Please do not reply to this email.</span
+											>
+										</td>
+									</tr>
 								</table>
 							</td>
 						</tr>
