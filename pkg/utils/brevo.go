@@ -279,10 +279,9 @@ func (b *BrevoClient) SendOTP(
 
 						<tr>
 							<td class="content">
-								<p>Hi %s,</p>
+								<p>Dear %s,</p>
 								<p>
-									Use the verification code below to continue. For your security, please don't share
-									this code with anyone.
+									Here is your verification code, use this code to continue.
 								</p>
 
 								<div class="code-box">
