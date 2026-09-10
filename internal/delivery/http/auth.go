@@ -448,7 +448,7 @@ func Auth(r *gin.Engine) {
 					return
 				}
 			} else if input.Type == "backup_code" {
-				codee := strings.ToLower(strings.Replace(input.Code, "-", "", 0))
+				codee := strings.ToLower(strings.ReplaceAll(input.Code, "-", ""))
 				normalized := utils.NormalizeBackupCode(codee)
 				hash, _ := utils.EncryptDeterministic(normalized)
 
@@ -614,7 +614,7 @@ func Auth(r *gin.Engine) {
 				Where("LOWER(user_id) = ?", strings.ToLower(userData.UserID)).
 				First(&existing)
 
-			if getExisting.RowsAffected > 0 && utils.NowTz().After(existing.ExpiresAt) && strings.EqualFold(userData.Email, existing.Email) {
+			if getExisting.RowsAffected > 0 && utils.NowTz().Before(existing.ExpiresAt) && strings.EqualFold(userData.Email, existing.Email) {
 				utils.GetErrorJson("COOLDOWN", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, gin.H{
 					"expires_at": existing.ExpiresAt.Unix(),

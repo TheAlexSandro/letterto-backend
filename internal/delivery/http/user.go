@@ -5,6 +5,7 @@ import (
 	"LetterToBackend/internal/middleware"
 	"LetterToBackend/models"
 	"LetterToBackend/pkg/utils"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -364,7 +365,7 @@ func User(r *gin.Engine) {
 				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
 				First(&existing)
 
-			if getExisting.RowsAffected > 0 && utils.NowTz().After(existing.ExpiresAt) && strings.EqualFold(mail, existing.Email) {
+			if getExisting.RowsAffected > 0 && utils.NowTz().Before(existing.ExpiresAt) && strings.EqualFold(mail, existing.Email) {
 				utils.GetErrorJson("COOLDOWN", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, gin.H{
 					"expires_at": existing.ExpiresAt.Unix(),
@@ -379,6 +380,7 @@ func User(r *gin.Engine) {
 
 			if sendOtp != nil {
 				if err := sendOtp.Error(); err != "" {
+					fmt.Println(err)
 					utils.GetErrorJson("BAD_REQUEST", &errJson)
 					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 					return
