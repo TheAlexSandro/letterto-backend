@@ -266,24 +266,13 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			var userData models.User
-			getDb := config.DB.Table("users").Select("email", "auth_code").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				First(&userData)
-
-			if getDb.RowsAffected < 1 {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
 			var email *string
-			if userData.Email == "-" {
+			if user.Email == "-" {
 				email = nil
 			} else {
-				parts := strings.Split(userData.Email, "@")
+				parts := strings.Split(user.Email, "@")
 				if len(parts) != 2 {
-					email = &userData.Email
+					email = &user.Email
 					return
 				}
 
@@ -306,7 +295,7 @@ func User(r *gin.Engine) {
 			}
 
 			var totp bool
-			if userData.AuthCode == "-" {
+			if user.AuthCode == "-" {
 				totp = false
 			} else {
 				totp = true
@@ -353,29 +342,18 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			var userData models.User
-			getDb := config.DB.Table("users").Select("email").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				First(&userData)
-
-			if getDb.RowsAffected < 1 {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
-			if strings.EqualFold(userData.Email, input.Email) {
+			if strings.EqualFold(user.Email, input.Email) {
 				utils.GetErrorJson("EMAIL_USED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
 
 			var mail string
-			if input.Email == "" && userData.Email != "-" {
-				mail = userData.Email
+			if input.Email == "" && user.Email != "-" {
+				mail = user.Email
 			} else if input.Email != "" {
 				mail = input.Email
-			} else if input.Email == "" && userData.Email == "-" {
+			} else if input.Email == "" && user.Email == "-" {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "email, code, action", 1), nil, errJson.Code)
 				return
@@ -431,18 +409,7 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			var userData models.User
-			getDb := config.DB.Table("users").Select("auth_code", "password").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				First(&userData)
-
-			if getDb.RowsAffected < 1 {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
-			checkPw := utils.CheckPasswordHash(input.Password, userData.Password)
+			checkPw := utils.CheckPasswordHash(input.Password, user.Password)
 			if !checkPw {
 				utils.GetErrorJson("INVALID_PASSWORD", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -553,12 +520,7 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			var userData models.User
-			getDb := config.DB.Table("users").Select("email").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				First(&userData)
-
-			if getDb.RowsAffected < 1 || userData.Email != "-" {
+			if user.Email != "-" {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
@@ -637,12 +599,7 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			var userData models.User
-			getDb := config.DB.Table("users").Select("email").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				First(&userData)
-
-			if getDb.RowsAffected < 1 || userData.Email == "-" {
+			if user.Email == "-" {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
@@ -716,12 +673,7 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			var userData models.User
-			getDb := config.DB.Table("users").Select("auth_code").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				First(&userData)
-
-			if getDb.RowsAffected < 1 || userData.AuthCode != "-" {
+			if user.AuthCode != "-" {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
@@ -797,18 +749,13 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			var userData models.User
-			getDb := config.DB.Table("users").Select("auth_code").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				First(&userData)
-
-			if getDb.RowsAffected < 1 || userData.AuthCode == "-" {
+			if user.AuthCode == "-" {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
 
-			isValid := totp.Validate(input.Code, userData.AuthCode)
+			isValid := totp.Validate(input.Code, user.AuthCode)
 			if !isValid {
 				utils.GetErrorJson("INVALID_VERIFICATION_CODE", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
@@ -854,20 +801,9 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			var userData models.User
-			getDb := config.DB.Table("users").Select("backup_codes_generation").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				First(&userData)
-
-			if getDb.RowsAffected < 1 {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
-				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
-				return
-			}
-
-			if getDb.RowsAffected > 0 && userData.BackupCodesGeneration != nil {
+			if user.BackupCodesGeneration != nil {
 				const cooldown = 3 * 24 * time.Hour
-				nextAllowedAt := userData.BackupCodesGeneration.Add(cooldown)
+				nextAllowedAt := user.BackupCodesGeneration.Add(cooldown)
 				if time.Now().Before(nextAllowedAt) {
 					utils.GetErrorJson("RATE_LIMITED", &errJson)
 					utils.JSON(ctx, errJson.Http, false, "Backup code can only be generated every 3 days at once.", nil, errJson.Code)
