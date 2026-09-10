@@ -168,7 +168,7 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
-			timeout, _ := strconv.Atoi(os.Getenv("COOKIE_TIMEOUT"))
+			timeout, _ := strconv.Atoi(os.Getenv("SES_EXP"))
 			http.SetCookie(ctx.Writer, &http.Cookie{
 				Name:     os.Getenv("KEY_SES_USER"),
 				Value:    signedValue,
@@ -303,12 +303,13 @@ func Auth(r *gin.Engine) {
 					return
 				}
 
-				timeout, _ := strconv.Atoi(os.Getenv("COOKIE_TIMEOUT"))
+				timeout, _ := strconv.Atoi(os.Getenv("SES_EXP"))
+				calc := time.Duration(timeout) * time.Hour
 				http.SetCookie(ctx.Writer, &http.Cookie{
 					Name:     os.Getenv("KEY_SES_USER"),
 					Value:    signedValue,
 					Path:     "/",
-					MaxAge:   timeout,
+					MaxAge:   int(calc.Seconds()),
 					HttpOnly: true,
 					Secure:   true,
 					SameSite: utils.SetCookieSameSite(),
@@ -508,12 +509,13 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
-			timeout, _ := strconv.Atoi(os.Getenv("COOKIE_TIMEOUT"))
+			timeout, _ := strconv.Atoi(os.Getenv("SES_EXP"))
+			calc := time.Duration(timeout) * time.Hour
 			http.SetCookie(ctx.Writer, &http.Cookie{
 				Name:     os.Getenv("KEY_SES_USER"),
 				Value:    signedValue,
 				Path:     "/",
-				MaxAge:   timeout,
+				MaxAge:   int(calc.Seconds()),
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: utils.SetCookieSameSite(),

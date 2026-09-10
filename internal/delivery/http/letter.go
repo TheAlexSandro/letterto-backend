@@ -337,7 +337,7 @@ func Letter(r *gin.Engine) {
 				Name:     input.ID + "-" + os.Getenv("KEY_SES_LETTER"),
 				Value:    refreshToken,
 				Path:     "/",
-				MaxAge:   timeout - 3100,
+				MaxAge:   timeout,
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: utils.SetCookieSameSite(),
