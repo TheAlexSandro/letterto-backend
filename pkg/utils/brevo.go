@@ -324,8 +324,8 @@ func (b *BrevoClient) SendOTP(
 											<p>&copy; %s by LetterTo Security Service</p>
 										</td>
 										<td align="right" class="link footer-links">
-											<a href="/letterto.site/blog/privacy-policy">Privacy Policy</a>
-											<a href="/letterto.site/blog/tos">Terms Of Service</a>
+											<a href="https://letterto.site/blog/privacy-policy">Privacy Policy</a>
+											<a href="https://letterto.site/blog/tos">Terms Of Service</a>
 										</td>
 									</tr>
 								</table>

@@ -482,7 +482,7 @@ func Auth(r *gin.Engine) {
 					return
 				}
 
-				config.DB.Table("otps").Where("AND LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.Otp{})
+				config.DB.Table("otps").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.Otp{})
 			}
 
 			config.DB.Table("cookie_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.CookieSession{})
