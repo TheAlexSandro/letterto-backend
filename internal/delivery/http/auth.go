@@ -238,7 +238,7 @@ func Auth(r *gin.Engine) {
 			}
 
 			var user models.User
-			getUser := config.DB.Table("users").Select("user_id", "password", "email", "auth_code").
+			getUser := config.DB.Table("users").Select("user_id", "password", "email", "auth_code", "name").
 				Where("LOWER(username) = ?", strings.ToLower(value.Username)).
 				First(&user)
 
@@ -255,10 +255,9 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
-			var count int64
-			config.DB.Table("backup_codes").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				Count(&count)
+			var t string
+			getBC := config.DB.Table("backup_codes").
+				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Limit(1).Scan(&t)
 			var mfa string
 			if user.AuthCode != "-" {
 				mfa = "totp"
@@ -267,7 +266,7 @@ func Auth(r *gin.Engine) {
 				otp, _ := utils.GenerateOtp()
 				hashed := utils.HashCode(otp)
 				loadClient := utils.NewBrevoClient()
-				sendOtp := loadClient.SendOTP(user.Email, otp, hashed, user.UserID)
+				sendOtp := loadClient.SendOTP(user.Email, otp, hashed, user.UserID, user.Name)
 
 				if sendOtp != nil {
 					if err := sendOtp.Error(); err != "" {
@@ -276,13 +275,13 @@ func Auth(r *gin.Engine) {
 						return
 					}
 				}
-			} else if count > 0 {
+			} else if getBC.RowsAffected > 0 {
 				mfa = "backup_code"
 			}
 
 			config.DB.Table("cookie_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.CookieSession{})
 
-			if user.Email == "-" && user.AuthCode == "-" && count < 1 {
+			if user.Email == "-" && user.AuthCode == "-" && getBC.RowsAffected < 1 {
 				refreshToken := utils.GenerateID(50)
 				newSession := models.Session{
 					RefreshToken: refreshToken,
@@ -482,6 +481,8 @@ func Auth(r *gin.Engine) {
 					utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 					return
 				}
+
+				config.DB.Table("otps").Where("AND LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.Otp{})
 			}
 
 			config.DB.Table("cookie_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.CookieSession{})
@@ -596,7 +597,7 @@ func Auth(r *gin.Engine) {
 			}
 
 			var userData models.User
-			getDb := config.DB.Table("users").Select("email").
+			getDb := config.DB.Table("users").Select("user_id", "email", "name").
 				Where("LOWER(user_id) = ?", strings.ToLower(input.UserId)).
 				First(&userData)
 
@@ -606,10 +607,23 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
+			var existing models.Otp
+			getExisting := config.DB.Table("otps").Select("expires_at", "email").
+				Where("LOWER(user_id) = ?", strings.ToLower(userData.UserID)).
+				First(&existing)
+
+			if getExisting.RowsAffected > 0 && utils.NowTz().After(existing.ExpiresAt) && strings.EqualFold(userData.Email, existing.Email) {
+				utils.GetErrorJson("COOLDOWN", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, gin.H{
+					"expires_at": existing.ExpiresAt.Unix(),
+				}, errJson.Code)
+				return
+			}
+
 			otp, _ := utils.GenerateOtp()
 			hashed := utils.HashCode(otp)
 			loadClient := utils.NewBrevoClient()
-			sendOtp := loadClient.SendOTP(userData.Email, otp, hashed, userData.UserID)
+			sendOtp := loadClient.SendOTP(userData.Email, otp, hashed, userData.UserID, userData.Name)
 
 			if sendOtp != nil {
 				if err := sendOtp.Error(); err != "" {

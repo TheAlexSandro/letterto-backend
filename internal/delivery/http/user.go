@@ -173,12 +173,17 @@ func User(r *gin.Engine) {
 			}
 
 			editProfile := models.User{
-				UserID:   user.UserID,
-				Name:     value.Name,
-				Username: value.Username,
-				Password: value.NewPassword,
-				Profile:  "-",
-				Role:     user.Role,
+				UserID:                user.UserID,
+				Name:                  value.Name,
+				Username:              value.Username,
+				Password:              value.NewPassword,
+				Profile:               "-",
+				Role:                  user.Role,
+				AccountFeature:        user.AccountFeature,
+				LetterFeature:         user.LetterFeature,
+				Email:                 user.Email,
+				AuthCode:              user.AuthCode,
+				BackupCodesGeneration: user.BackupCodesGeneration,
 			}
 
 			if dbErr := config.DB.Table("users").Save(&editProfile).Error; dbErr != nil {
@@ -307,13 +312,12 @@ func User(r *gin.Engine) {
 				totp = true
 			}
 
-			var count int64
-			config.DB.Table("backup_codes").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-				Count(&count)
+			var t string
+			getBC := config.DB.Table("backup_codes").
+				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Limit(1).Scan(&t)
 
 			var backup_code bool
-			if count < 1 {
+			if getBC.RowsAffected < 1 {
 				backup_code = false
 			} else {
 				backup_code = true
@@ -393,7 +397,7 @@ func User(r *gin.Engine) {
 			otp, _ := utils.GenerateOtp()
 			hashed := utils.HashCode(otp)
 			loadClient := utils.NewBrevoClient()
-			sendOtp := loadClient.SendOTP(mail, otp, hashed, user.UserID)
+			sendOtp := loadClient.SendOTP(mail, otp, hashed, user.UserID, user.Name)
 
 			if sendOtp != nil {
 				if err := sendOtp.Error(); err != "" {

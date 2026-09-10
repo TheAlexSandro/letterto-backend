@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -49,6 +50,7 @@ func (b *BrevoClient) SendOTP(
 	otp string,
 	hashString string,
 	userId string,
+	name string,
 ) error {
 	config.DB.Table("otps").Where("LOWER(user_id) = ?", strings.ToLower(userId)).Delete(&models.Otp{})
 	otps := models.Otp{
@@ -62,7 +64,6 @@ func (b *BrevoClient) SendOTP(
 	if err := config.DB.Table("otps").Create(otps).Error; err != nil {
 		return err
 	}
-
 	reqBody := sendEmailRequest{}
 
 	reqBody.Sender.Name = b.FromName
@@ -78,23 +79,29 @@ func (b *BrevoClient) SendOTP(
 	reqBody.Subject = "Verification Code - " + otp
 
 	reqBody.HTMLContent = fmt.Sprintf(`
-<!doctype html>
+	<!doctype html>
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-		<title>LetterTo Security</title>
+		<title>LetterTo</title>
 
 		<style>
-			@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+			@import url('https://fonts.googleapis.com/css2?family=Playwrite+NZ+Guides&display=swap');
+			@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
 			body {
 				margin: 0;
 				padding: 0;
-				background-color: #fffbfe;
-				font-family: 'Poppins', Arial, sans-serif;
-				color: #050505;
+				background-color: #ffffff;
+				font-family: 'Poppins', sans-serif;
+			}
+
+			a {
+				color: #7c3aed;
+				text-decoration: underline;
+				text-underline-offset: 2px;
+				text-decoration-color: #ede9fe;
 			}
 
 			table {
@@ -102,167 +109,136 @@ func (b *BrevoClient) SendOTP(
 				border-collapse: collapse;
 			}
 
-			.email-wrapper {
+			.wrapper {
 				width: 100%%;
-				background-color: #fffbfe;
-				padding: 40px 16px;
+				background-color: #ffffff;
+				padding: 24px 16px;
 			}
 
-			.email-container {
+			.container {
 				width: 100%%;
-				max-width: 520px;
+				max-width: 480px;
 				margin: 0 auto;
-				background-color: #ffffff;
-				border: 1px solid #ede9fe;
-				border-radius: 16px;
-				overflow: hidden;
 			}
 
 			.header {
-				padding: 30px 32px 26px;
-				text-align: center;
-				background-color: #f7f2fa;
-				border-bottom: 1px solid #ede9fe;
+				padding: 10px 8px 20px;
+				border-bottom: 1px solid #d6d5d5;
 			}
 
-			.logo {
-				margin: 0;
-				font-size: 24px;
-				font-weight: 700;
-				color: #7c3aed;
-				letter-spacing: -0.5px;
+			.header-row td {
+				vertical-align: middle;
 			}
 
-			.header-subtitle {
-				margin: 6px 0 0;
-				font-size: 13px;
-				font-weight: 400;
-				color: #65676b;
+			.logo-box img {
+				width: 35px;
+				height: auto;
+				vertical-align: middle;
+				display: inline-block;
+			}
+
+			.logo-box span {
+				font-family: 'Playwrite NZ Guides', cursive;
+				font-style: normal;
+				vertical-align: middle;
+				font-size: 19px;
+				line-height: 35px;
+				color: #1c1c1c;
+				padding-left: 7px;
+			}
+
+			.logo-right {
+				font-weight: 500;
+				font-size: 14px;
+				line-height: 35px;
+				padding-top: 8px;
+				color: #1c1c1c;
 			}
 
 			.content {
-				padding: 36px 32px 32px;
-				text-align: center;
+				padding: 24px 8px 8px;
 			}
 
-			.title {
-				margin: 0 0 10px;
-				font-size: 22px;
-				font-weight: 600;
-				line-height: 1.4;
-				color: #050505;
-			}
-
-			.description {
-				margin: 0 auto;
-				max-width: 400px;
+			.content p {
+				margin: 0 0 16px;
 				font-size: 14px;
-				line-height: 1.7;
-				color: #65676b;
-			}
-
-			.code-wrapper {
-				margin: 28px 0 20px;
-				padding: 22px 16px;
-				background-color: #f3edf7;
-				border: 1px solid #ede9fe;
-				border-radius: 12px;
-			}
-
-			.code-label {
-				display: block;
-				margin-bottom: 8px;
-				font-size: 11px;
-				font-weight: 600;
-				letter-spacing: 1.5px;
-				text-transform: uppercase;
-				color: #8a8d91;
-			}
-
-			.code {
-				margin: 0;
-				font-size: 32px;
-				font-weight: 700;
-				letter-spacing: 8px;
-				line-height: 1.2;
-				color: #7c3aed;
-			}
-
-			.expiry {
-				margin: 0;
-				font-size: 12px;
 				line-height: 1.6;
-				color: #8a8d91;
+				color: #1c1c1c;
 			}
 
-			.expiry strong {
-				font-weight: 600;
-				color: #65676b;
-			}
-
-			.security-note {
-				margin-top: 28px;
-				padding: 14px 16px;
-				background-color: #f3eeff;
-				border-radius: 10px;
+			.code-box {
+				background-color: #f4f4f4;
+				border: 1px solid #7c3aed;
+				border-radius: 6px;
+				margin: 24px 0;
+				padding: 10px;
 				text-align: center;
 			}
 
-			.security-note p {
+			.code-box p {
 				margin: 0;
-				font-size: 12px;
-				line-height: 1.6;
-				color: #65676b;
+				font-size: 28px;
+				font-weight: 600;
+				letter-spacing: 4px;
+				color: #1c1c1c;
 			}
 
-			.security-note strong {
-				color: #6d28d9;
-				font-weight: 600;
+			.code-caption {
+				margin: 8px 0 0 !important;
+				font-size: 12px !important;
+				color: #676767 !important;
+				text-align: center;
+			}
+
+			.info-row {
+				padding-bottom: 7px;
+			}
+
+			.info-row span {
+				font-size: 14px;
+				line-height: 1.6;
+				color: #1c1c1c;
 			}
 
 			.footer {
-				padding: 20px 32px 26px;
-				border-top: 1px solid #ced0d4;
-				text-align: center;
+				padding: 20px 8px 0;
+				border-top: 1px solid #d6d5d5;
 			}
 
 			.footer p {
 				margin: 0;
-				font-size: 11px;
-				line-height: 1.7;
-				color: #8a8d91;
+				font-size: 12px;
+				line-height: 1.6;
+				color: #676767;
 			}
 
-			.footer-brand {
-				margin-top: 8px !important;
-				font-weight: 600;
-				color: #7c3aed !important;
+			.footer .link a {
+				font-size: 12px;
+				padding-left: 10px;
 			}
 
-			@media screen and (max-width: 600px) {
-				.email-wrapper {
-					padding: 20px 10px;
+			.footer .link a:first-child {
+				padding-left: 0;
+			}
+
+			@media screen and (max-width: 480px) {
+				.footer-copy,
+				.footer-links {
+					display: block !important;
+					width: 100%% !important;
+					text-align: center !important;
 				}
 
-				.header {
-					padding: 26px 20px 22px;
+				.footer-copy {
+					padding-bottom: 10px;
 				}
 
-				.content {
-					padding: 30px 20px 26px;
+				.footer .link {
+					justify-content: center;
 				}
 
-				.footer {
-					padding: 18px 20px 22px;
-				}
-
-				.title {
-					font-size: 20px;
-				}
-
-				.code {
-					font-size: 28px;
-					letter-spacing: 6px;
+				.footer .link a:first-child {
+					padding-left: 0;
 				}
 			}
 		</style>
@@ -275,7 +251,7 @@ func (b *BrevoClient) SendOTP(
 			cellpadding="0"
 			cellspacing="0"
 			border="0"
-			class="email-wrapper"
+			class="wrapper"
 		>
 			<tr>
 				<td align="center">
@@ -285,50 +261,75 @@ func (b *BrevoClient) SendOTP(
 						cellpadding="0"
 						cellspacing="0"
 						border="0"
-						class="email-container"
+						class="container"
 					>
 						<tr>
 							<td class="header">
-								<h1 class="logo">LetterTo Security</h1>
-
-								<p class="header-subtitle">Account Verification</p>
+								<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0">
+									<tr class="header-row">
+										<td class="logo-box" align="left">
+											<img src="https://storage.letterto.site/assets/favicon.svg" alt="logo" />
+											<span>LetterTo</span>
+										</td>
+										<td class="logo-right" align="right">Security Service</td>
+									</tr>
+								</table>
 							</td>
 						</tr>
 
 						<tr>
 							<td class="content">
-								<p class="description">
+								<p>Hi %s,</p>
+								<p>
 									Use the verification code below to continue. For your security, please don't share
 									this code with anyone.
 								</p>
 
-								<div class="code-wrapper">
-									<span class="code-label"> Verification Code </span>
-
-									<p class="code">%s</p>
+								<div class="code-box">
+									<p>%s</p>
 								</div>
+								<p class="code-caption">This code expires in 5 minutes.</p>
 
-								<p class="expiry">
-									This code will expire in
-									<strong>5 minutes</strong>.
-								</p>
-
-								<div class="security-note">
-									<p>
-										We never ask you to share your verification code through email, chat,
-										or any other channel.
-									</p>
-								</div>
+								<table
+									role="presentation"
+									width="100%%"
+									cellpadding="0"
+									cellspacing="0"
+									border="0"
+									style="margin-top: 24px"
+								>
+									<tr>
+										<td class="info-row">
+											<span
+												>Never share this code with anyone, even if they claim to be from LetterTo.
+												We never ask you to share this code.</span
+											>
+										</td>
+									</tr>
+									<tr>
+										<td class="info-row">
+											<span
+												>If you didn't request this code, you can safely ignore this email.</span
+											>
+										</td>
+									</tr>
+								</table>
 							</td>
 						</tr>
 
 						<tr>
 							<td class="footer">
-								<p>
-									If you didn't request this verification code, you can safely ignore this email.
-								</p>
-
-								<p class="footer-brand">LetterTo Security Service</p>
+								<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" border="0">
+									<tr>
+										<td align="left" class="footer-copy">
+											<p>&copy; %s by LetterTo Security Service</p>
+										</td>
+										<td align="right" class="link footer-links">
+											<a href="/letterto.site/blog/privacy-policy">Privacy Policy</a>
+											<a href="/letterto.site/blog/tos">Terms Of Service</a>
+										</td>
+									</tr>
+								</table>
 							</td>
 						</tr>
 					</table>
@@ -337,7 +338,8 @@ func (b *BrevoClient) SendOTP(
 		</table>
 	</body>
 </html>
-`, otp)
+
+`, name, otp, strconv.Itoa(time.Now().Year()))
 
 	reqBody.TextContent = fmt.Sprintf(
 		"Your verification code is: %s\n\nThis code will expire in 5 minutes.",
