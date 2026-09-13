@@ -816,7 +816,6 @@ func User(r *gin.Engine) {
 			for _, c := range plainCodes {
 				id := utils.GenerateID(20)
 				cd, _ := utils.EncryptDeterministic(c)
-				fmt.Printf("[GEN] id=%s hash=%q len=%d\n", id, cd, len(cd))
 				rows = append(rows, models.BackupCode{
 					BackupCodeId: id,
 					UserID:       user.UserID,
@@ -893,7 +892,6 @@ func User(r *gin.Engine) {
 			rows := make([]string, 0, len(backupCodeData))
 			for _, c := range backupCodeData {
 				cd, _ := utils.Decrypt(c.CodeHash)
-				fmt.Printf("[READ] id=%s hash=%q len=%d\n", c.BackupCodeId, c.CodeHash, len(c.CodeHash))
 				if c.Used == "yes" {
 					rows = append(rows, strings.Repeat("-", len(cd)))
 				} else {

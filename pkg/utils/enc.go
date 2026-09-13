@@ -10,7 +10,10 @@ import (
 	"os"
 )
 
-var secret = os.Getenv("ENC_SECRET")
+func getEncSecret() string {
+	s := os.Getenv("ENC_SECRET")
+	return s
+}
 
 func deriveNonce(plaintext string, nonceKey []byte, size int) []byte {
 	mac := hmac.New(sha256.New, nonceKey)
@@ -20,7 +23,7 @@ func deriveNonce(plaintext string, nonceKey []byte, size int) []byte {
 }
 
 func EncryptDeterministic(text string) (string, error) {
-	encKey, nonceKey := DeriveKeys(secret)
+	encKey, nonceKey := DeriveKeys(getEncSecret())
 
 	block, err := aes.NewCipher(encKey)
 	if err != nil {
@@ -40,7 +43,7 @@ func EncryptDeterministic(text string) (string, error) {
 }
 
 func Decrypt(encryptedText string) (string, error) {
-	encKey, _ := DeriveKeys(secret)
+	encKey, _ := DeriveKeys(getEncSecret())
 
 	data, err := base64.RawURLEncoding.DecodeString(encryptedText)
 	if err != nil {
