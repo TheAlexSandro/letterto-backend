@@ -277,7 +277,7 @@ func Auth(r *gin.Engine) {
 
 			config.DB.Table("cookie_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.CookieSession{})
 
-			if user.Email == "-" && user.AuthCode == "-" && user.BackupCodesGeneration != nil {
+			if user.Email == "-" && user.AuthCode == "-" && user.BackupCodesGeneration == nil {
 				refreshToken := utils.GenerateID(50)
 				newSession := models.Session{
 					RefreshToken: refreshToken,
