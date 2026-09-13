@@ -745,7 +745,7 @@ func Auth(r *gin.Engine) {
 			}
 
 			var userData models.User
-			getDb := config.DB.Table("users").Select("email", "auth_code").
+			getDb := config.DB.Table("users").Select("email", "auth_code", "backup_codes_generation").
 				Where("LOWER(user_id) = ?", strings.ToLower(input.UserId)).
 				First(&userData)
 
@@ -769,13 +769,8 @@ func Auth(r *gin.Engine) {
 				hasAuth = true
 			}
 
-			var count int64
-			config.DB.Table("backup_codes").
-				Where("LOWER(user_id) = ?", strings.ToLower(input.UserId)).
-				Count(&count)
-
 			var hasBC bool
-			if count < 1 {
+			if userData.BackupCodesGeneration == nil {
 				hasBC = false
 			} else {
 				hasBC = true

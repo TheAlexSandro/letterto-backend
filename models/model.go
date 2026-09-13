@@ -101,7 +101,7 @@ type CookieSession struct {
 type BackupCode struct {
 	BackupCodeId string    `gorm:"primaryKey;type:text" json:"backup_code_id"`
 	UserID       string    `gorm:"primaryKey;type:text" json:"user_id"`
-	CodeHash     string    `gorm:"type:text" json:"code_hash"`
+	CodeHash     string    `gorm:"primaryKey;type:text" json:"code_hash"`
 	CreatedAt    time.Time `gorm:"type:timestamptz" json:"created_at"`
 	Used         string    `gorm:"type:text:default:no" json:"used"`
 }
