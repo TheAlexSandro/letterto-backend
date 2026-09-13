@@ -41,7 +41,6 @@ type VerifyTOTP struct {
 }
 
 type VerifyIdentity struct {
-	Model    string `json:"model" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -302,12 +301,8 @@ func User(r *gin.Engine) {
 				totp = true
 			}
 
-			var t string
-			getBC := config.DB.Table("backup_codes").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Limit(1).Scan(&t)
-
 			var backup_code bool
-			if getBC.RowsAffected < 1 {
+			if user.BackupCodesGeneration == nil {
 				backup_code = false
 			} else {
 				backup_code = true
@@ -407,10 +402,6 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			if !utils.ValidateEnum(ctx, "model", input.Model, []string{"vin.sid", "vem.sid"}) {
-				return
-			}
-
 			checkPw := utils.CheckPasswordHash(input.Password, user.Password)
 			if !checkPw {
 				utils.GetErrorJson("INVALID_PASSWORD", &errJson)
@@ -431,7 +422,7 @@ func User(r *gin.Engine) {
 			otpSessionData := models.CookieSession{
 				SessionId: enc,
 				UserId:    user.UserID,
-				Name:      input.Model,
+				Name:      "vi.sid",
 			}
 
 			if err := config.DB.Table("cookie_sessions").Create(otpSessionData).Error; err != nil {
@@ -442,7 +433,7 @@ func User(r *gin.Engine) {
 
 			cExpire, _ := strconv.Atoi(os.Getenv("C_SID_EXPIRE"))
 			http.SetCookie(ctx.Writer, &http.Cookie{
-				Name:     input.Model,
+				Name:     "vi.sid",
 				Value:    enc,
 				Path:     "/",
 				MaxAge:   cExpire,
@@ -465,9 +456,9 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			getEncC, err := ctx.Cookie("vem.sid")
+			getEncC, err := ctx.Cookie("vi.sid")
 			if err != nil || !utils.VerifySignature(getEncC) {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -477,8 +468,8 @@ func User(r *gin.Engine) {
 				Where("LOWER(session_id) = ? AND LOWER(user_id) = ?", strings.ToLower(getEncC), strings.ToLower(user.UserID)).
 				First(&sessionCookie)
 
-			if getOtpSDb.RowsAffected < 1 || sessionCookie.Name != "vem.sid" {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+			if getOtpSDb.RowsAffected < 1 || sessionCookie.Name != "vi.sid" {
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -558,9 +549,9 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			getEncC, err := ctx.Cookie("vem.sid")
+			getEncC, err := ctx.Cookie("vi.sid")
 			if err != nil || !utils.VerifySignature(getEncC) {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -570,8 +561,8 @@ func User(r *gin.Engine) {
 				Where("LOWER(session_id) = ? AND LOWER(user_id) = ?", strings.ToLower(getEncC), strings.ToLower(user.UserID)).
 				First(&sessionCookie)
 
-			if getOtpSDb.RowsAffected < 1 || sessionCookie.Name != "vem.sid" {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+			if getOtpSDb.RowsAffected < 1 || sessionCookie.Name != "vi.sid" {
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -636,9 +627,9 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			getEncC, err := ctx.Cookie("vem.sid")
+			getEncC, err := ctx.Cookie("vi.sid")
 			if err != nil || !utils.VerifySignature(getEncC) {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -648,8 +639,8 @@ func User(r *gin.Engine) {
 				Where("LOWER(session_id) = ? AND LOWER(user_id) = ?", strings.ToLower(getEncC), strings.ToLower(user.UserID)).
 				First(&sessionCookie)
 
-			if getOtpSDb.RowsAffected < 1 || sessionCookie.Name != "vem.sid" {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+			if getOtpSDb.RowsAffected < 1 || sessionCookie.Name != "vi.sid" {
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -785,9 +776,9 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			getEncC, err := ctx.Cookie("vin.sid")
+			getEncC, err := ctx.Cookie("vi.sid")
 			if err != nil || !utils.VerifySignature(getEncC) {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -797,8 +788,8 @@ func User(r *gin.Engine) {
 				Where("LOWER(session_id) = ? AND LOWER(user_id) = ?", strings.ToLower(getEncC), strings.ToLower(user.UserID)).
 				First(&sessionOtp)
 
-			if getOtpSDb.RowsAffected < 1 || sessionOtp.Name != "vin.sid" {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+			if getOtpSDb.RowsAffected < 1 || sessionOtp.Name != "vi.sid" {
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -871,9 +862,9 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			getEncC, err := ctx.Cookie("vin.sid")
+			getEncC, err := ctx.Cookie("vi.sid")
 			if err != nil || !utils.VerifySignature(getEncC) {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -883,8 +874,8 @@ func User(r *gin.Engine) {
 				Where("LOWER(session_id) = ? AND LOWER(user_id) = ?", strings.ToLower(getEncC), strings.ToLower(user.UserID)).
 				First(&sessionOtp)
 
-			if getOtpSDb.RowsAffected < 1 || sessionOtp.Name != "vin.sid" {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+			if getOtpSDb.RowsAffected < 1 || sessionOtp.Name != "vi.sid" {
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -924,9 +915,9 @@ func User(r *gin.Engine) {
 				return
 			}
 
-			getEncC, err := ctx.Cookie("vin.sid")
+			getEncC, err := ctx.Cookie("vi.sid")
 			if err != nil || !utils.VerifySignature(getEncC) {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -936,8 +927,8 @@ func User(r *gin.Engine) {
 				Where("LOWER(session_id) = ? AND LOWER(user_id) = ?", strings.ToLower(getEncC), strings.ToLower(user.UserID)).
 				First(&sessionOtp)
 
-			if getOtpSDb.RowsAffected < 1 || sessionOtp.Name != "vin.sid" {
-				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+			if getOtpSDb.RowsAffected < 1 || sessionOtp.Name != "vi.sid" {
+				utils.GetErrorJson("ACCESS_DENIED", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
@@ -952,6 +943,14 @@ func User(r *gin.Engine) {
 			}
 
 			if err := config.DB.Table("backup_codes").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.BackupCode{}).Error; err != nil {
+				utils.GetErrorJson("BAD_REQUEST", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			if err := config.DB.Table("users").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Updates(map[string]interface{}{
+				"backup_codes_generation": nil,
+			}).Error; err != nil {
 				utils.GetErrorJson("BAD_REQUEST", &errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return

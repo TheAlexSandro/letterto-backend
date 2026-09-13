@@ -191,5 +191,10 @@
     "RATE_LIMITED": {
         "http": 429,
         "code": "RATE_LIMITED"
+    },
+    "ACCESS_DENIED": {
+        "http": 401,
+        "code": "ACCESS_DENIED",
+        "message": "Access Denied."
     }
 }

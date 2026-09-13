@@ -34,6 +34,10 @@ type Mfa struct {
 	UserId string `json:"user_id" binding:"required"`
 }
 
+type IsInMfa struct {
+	UserId string `json:"user_id" binding:"required"`
+}
+
 type VerifyMfa struct {
 	UserId string `json:"user_id" binding:"required"`
 	Code   string `json:"code" binding:"required"`
@@ -58,7 +62,7 @@ func Auth(r *gin.Engine) {
 			}
 
 			var user models.User
-			getUser := config.DB.Table("users").Select("user_id", "email", "auth_code").
+			getUser := config.DB.Table("users").Select("user_id", "email", "auth_code", "backup_codes_generation").
 				Where("LOWER(username) = ?", strings.ToLower(value.Username)).
 				First(&user)
 
@@ -67,12 +71,7 @@ func Auth(r *gin.Engine) {
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			} else if getUser.RowsAffected > 0 && value.Method == "signin" {
-				var count int64
-				config.DB.Table("backup_codes").
-					Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).
-					Count(&count)
-
-				if user.Email != "-" || user.AuthCode != "-" || count > 0 {
+				if user.Email != "-" || user.AuthCode != "-" || user.BackupCodesGeneration != nil {
 					utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"is_mfa_active": true}, "")
 				} else {
 					utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"is_mfa_active": false}, "")
@@ -238,7 +237,7 @@ func Auth(r *gin.Engine) {
 			}
 
 			var user models.User
-			getUser := config.DB.Table("users").Select("user_id", "password", "email", "auth_code", "name").
+			getUser := config.DB.Table("users").Select("user_id", "password", "email", "auth_code", "name", "backup_codes_generation").
 				Where("LOWER(username) = ?", strings.ToLower(value.Username)).
 				First(&user)
 
@@ -255,9 +254,6 @@ func Auth(r *gin.Engine) {
 				return
 			}
 
-			var t string
-			getBC := config.DB.Table("backup_codes").
-				Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Limit(1).Scan(&t)
 			var mfa string
 			if user.AuthCode != "-" {
 				mfa = "totp"
@@ -275,13 +271,13 @@ func Auth(r *gin.Engine) {
 						return
 					}
 				}
-			} else if getBC.RowsAffected > 0 {
+			} else if user.BackupCodesGeneration != nil {
 				mfa = "backup_code"
 			}
 
 			config.DB.Table("cookie_sessions").Where("LOWER(user_id) = ?", strings.ToLower(user.UserID)).Delete(&models.CookieSession{})
 
-			if user.Email == "-" && user.AuthCode == "-" && getBC.RowsAffected < 1 {
+			if user.Email == "-" && user.AuthCode == "-" && user.BackupCodesGeneration != nil {
 				refreshToken := utils.GenerateID(50)
 				newSession := models.Session{
 					RefreshToken: refreshToken,
@@ -399,6 +395,48 @@ func Auth(r *gin.Engine) {
 				utils.JSON(ctx, http.StatusOK, true, "Success!", gin.H{"mfa_type": mfa, "user_id": user.UserID}, "")
 				return
 			}
+		})
+
+		auth.POST("/isMfaStep", func(ctx *gin.Context) {
+			var errJson models.ErrorDetail
+			var input IsInMfa
+
+			if err := ctx.ShouldBindJSON(&input); err != nil {
+				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
+				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "user_id", 1), nil, errJson.Code)
+				return
+			}
+
+			getEncC, err := ctx.Cookie("vlg.sid")
+			if err != nil || !utils.VerifySignature(getEncC) {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			var sessionCookie models.CookieSession
+			getOtpSDb := config.DB.Table("cookie_sessions").Select("name").
+				Where("LOWER(session_id) = ? AND LOWER(user_id) = ?", strings.ToLower(getEncC), strings.ToLower(input.UserId)).
+				First(&sessionCookie)
+
+			if getOtpSDb.RowsAffected < 1 || sessionCookie.Name != "vlg.sid" {
+				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			var user models.User
+			getUser := config.DB.Table("users").Select("email", "auth_code", "backup_codes_generation").
+				Where("LOWER(user_id) = ?", strings.ToLower(input.UserId)).
+				First(&user)
+
+			if getUser.RowsAffected < 1 {
+				utils.GetErrorJson("USER_NOT_FOUND", &errJson)
+				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
+				return
+			}
+
+			utils.JSON(ctx, http.StatusOK, true, "Success!", nil, "")
 		})
 
 		auth.POST("/verifyMfa", func(ctx *gin.Context) {
