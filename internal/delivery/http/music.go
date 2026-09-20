@@ -16,7 +16,7 @@ import (
 )
 
 type SearchMusic struct {
-	Q string `form:"q" binding:"required"`
+	Q string `json:"q" binding:"required"`
 }
 
 type PreviewMusic struct {
@@ -41,7 +41,7 @@ var deezerClient = &http.Client{
 func Music(r *gin.Engine) {
 	music := r.Group("/music")
 	{
-		music.GET("/search", func(ctx *gin.Context) {
+		music.POST("/search", func(ctx *gin.Context) {
 			var input SearchMusic
 			var errJson models.ErrorDetail
 
@@ -52,7 +52,7 @@ func Music(r *gin.Engine) {
 				return
 			}
 
-			if err := ctx.ShouldBind(&input); err != nil {
+			if err := ctx.ShouldBindJSON(&input); err != nil {
 				utils.GetErrorJson("PARAMETER_EMPTY", &errJson)
 				utils.JSON(ctx, errJson.Http, false, strings.Replace(errJson.Message, "{param}", "q", 1), nil, errJson.Code)
 				return
