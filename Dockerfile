@@ -15,6 +15,7 @@ RUN apk add --no-cache ca-certificates tzdata \
 
 WORKDIR /app
 COPY --from=build /out/server /app/server
+COPY --from=build /src/internal/constant /app/internal/constant
 
 USER app
 EXPOSE 8000
