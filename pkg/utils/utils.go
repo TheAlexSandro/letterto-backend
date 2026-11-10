@@ -95,7 +95,8 @@ func GetExpiry() time.Duration {
 }
 
 func GetErrorJson(code string, target *models.ErrorDetail) {
-	file, _ := os.ReadFile("internal/constant/http_code.json")
+	file, err := os.ReadFile("internal/constant/http_code.json")
+	fmt.Println(err)
 	var allErrors map[string]models.ErrorDetail
 	json.Unmarshal(file, &allErrors)
 
