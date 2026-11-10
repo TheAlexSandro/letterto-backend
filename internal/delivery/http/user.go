@@ -223,6 +223,7 @@ func User(r *gin.Engine) {
 			verify, user := middleware.IsLogin(ctx)
 			if !verify {
 				utils.GetErrorJson("UNAUTHORIZED", &errJson)
+				fmt.Println(errJson)
 				utils.JSON(ctx, errJson.Http, false, errJson.Message, nil, errJson.Code)
 				return
 			}
